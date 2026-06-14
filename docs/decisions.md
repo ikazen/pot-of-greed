@@ -61,3 +61,11 @@
 **결정**: 20초. config `COMPLEX_MODE_TIMEOUT_S`.
 
 **왜**: E(충분성 N=2~3), F1(1회 검증), HyDE를 모두 넣어도 20초 내 가능. 충분성 루프에서 시간 추적해 조기 탈출.
+
+---
+
+## I. Hierarchical 청킹 / small-to-big
+
+**결정**: 계층 = 조문 한정. 검색 child = 항/호, 컨텍스트 parent = 조. 계층 표현은 pgvector `parent_chunk_id` fetch만 사용(그래프에 계층 엣지 없음). 판례는 계층 미적용.
+
+**왜**: 항/호로 검색해야 임베딩 희석 없이 정밀 매칭되고, 조 전체를 parent로 끌어와야 리랭커·LLM이 세법 문맥을 오독 없이 본다(small-to-big). 계층을 그래프에 넣으면 Neo4j가 관계 탐색과 계층 탐색 두 역할을 지게 되므로, 단순 fetch로 충분한 계층은 PG 한 컬럼(`parent_chunk_id`)에 두고 그래프(G)는 인용/준용 관계에만 집중시킨다. 상세는 design.md §3.3.

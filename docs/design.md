@@ -109,6 +109,41 @@ CREATE INDEX ON case_chunks    USING gin (tsv);
 
 `chunk_id`가 pgvector와 Neo4j를 잇는 공유 키. 벡터 검색 결과의 `chunk_id`를 Neo4j 탐색의 시작 노드로 그대로 사용.
 
+> Neo4j 그래프는 **인용/준용 관계 전용**이다. 조→항 같은 계층(hierarchy)은 그래프에 넣지 않는다(§3.3). 그래프와 계층의 역할을 분리해 양쪽 모델을 단순하게 유지한다.
+
+### 3.3 Hierarchical 청킹 / small-to-big
+
+계층은 **조문 한정**이며, pgvector의 `parent_chunk_id` 한 컬럼으로만 표현한다(그래프 미사용).
+
+```
+계층:          법령 > 조(Article) > 항/호(Clause)
+검색 child:    항/호 청크        (작게 → 정밀 매칭, 임베딩 희석 방지)
+컨텍스트 parent: 조 전체 청크    (크게 → 리랭커·LLM에 문맥 공급)
+```
+
+적재 규약 (`article_chunks` 한 테이블에 두 레벨이 공존):
+
+| | 조 청크 (parent) | 항/호 청크 (child) |
+|---|---|---|
+| `clause_path` | NULL | "제1항 제3호" |
+| `parent_chunk_id` | NULL | 소속 조 청크의 `chunk_id` |
+| 임베딩 대상 | 예 (조 단독 조회 대비) | 예 (주 검색 단위) |
+
+검색 흐름(small-to-big):
+
+```
+1. 하이브리드 검색 + 리랭킹 → 항/호 child 청크 선별 (정밀)
+2. 선별된 child의 parent_chunk_id로 조 청크를 fetch (1쿼리, 중복 제거)
+3. LLM 컨텍스트 = child 본문 + parent 조문 본문
+   (child가 이미 조 레벨이면 parent 없음 → 그대로 사용)
+```
+
+시점/유효성 입자: `effective_from/to`·`validity_flag`는 **조 단위**가 기준. 단, 항이 독자적 시행일/개정이력을 가지면 **항 우선**(child 값이 parent를 오버라이드).
+
+판례(`case_chunks`)는 이 계층을 적용하지 않는다 — 판례는 조/항 같은 포함 구조가 없고, 판례 간 관계는 그래프(CITES/OVERRULED_BY)가 담당한다.
+
+> 청킹 코드(조/항/호 경계 분할) 자체는 데이터 수집 작업(결정 D)에 속해 이번 범위 밖이다. 본 절은 **적재될 데이터가 따라야 할 계약(contract)**과 런타임 parent fetch를 규정한다.
+
 ---
 
 ## 4. 판례 유효성 처리 (정확성 핵심)
