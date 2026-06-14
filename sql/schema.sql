@@ -58,7 +58,6 @@ BEFORE INSERT OR UPDATE ON case_chunks
 FOR EACH ROW EXECUTE FUNCTION case_chunks_tsv_update();
 
 -- 벡터 인덱스 (hnsw)
--- embedding이 NULL이 아닌 행이 있을 때 효과적; 초기 0행엔 무해
 CREATE INDEX IF NOT EXISTS article_chunks_embedding_idx
     ON article_chunks USING hnsw (embedding vector_cosine_ops);
 
