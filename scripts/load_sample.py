@@ -11,6 +11,7 @@ tsv는 트리거가 자동으로 채운다.
 
 import asyncio
 import sys
+from datetime import date
 from pathlib import Path
 
 import asyncpg
@@ -153,7 +154,9 @@ async def load_pg(dsn: str) -> None:
                 """,
                 art["chunk_id"], art["law_name"], art["article_no"],
                 art["clause_path"], art["parent_chunk_id"], art["text"],
-                art["effective_from"], art["effective_to"], art["is_current"],
+                date.fromisoformat(art["effective_from"]),
+                date.fromisoformat(art["effective_to"]) if art["effective_to"] else None,
+                art["is_current"],
             )
         for case in CASES:
             await conn.execute(
@@ -164,7 +167,8 @@ async def load_pg(dsn: str) -> None:
                 ON CONFLICT (chunk_id) DO NOTHING
                 """,
                 case["chunk_id"], case["case_no"], case["court"],
-                case["decided_at"], case["is_en_banc"], case["validity_flag"], case["text"],
+                date.fromisoformat(case["decided_at"]),
+                case["is_en_banc"], case["validity_flag"], case["text"],
             )
         art_count = await conn.fetchval("SELECT count(*) FROM article_chunks")
         case_count = await conn.fetchval("SELECT count(*) FROM case_chunks")
