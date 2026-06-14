@@ -31,7 +31,7 @@ async def simple_inference(query: str, chunks: list[Chunk]) -> str:
     context = _build_context(chunks)
     user_message = f"다음 법령/판례를 참고하여 질의에 답변하십시오.\n\n{context}\n\n질의: {query}"
 
-    async with httpx.AsyncClient(timeout=settings.complex_mode_timeout_s + 5.0) as client:
+    async with httpx.AsyncClient(timeout=settings.llm_timeout_s) as client:
         resp = await client.post(
             f"{settings.ollama_cloud_base_url}/api/chat",
             headers={"Authorization": f"Bearer {settings.ollama_api_key}"} if settings.ollama_api_key else {},
@@ -56,7 +56,7 @@ async def complex_inference(query: str, chunks: list[Chunk], system_extra: str =
     context = _build_context(chunks)
     user_message = f"다음 법령/판례를 참고하여 질의에 상세히 답변하십시오.\n\n{context}\n\n질의: {query}"
 
-    async with httpx.AsyncClient(timeout=settings.complex_mode_timeout_s + 5.0) as client:
+    async with httpx.AsyncClient(timeout=settings.llm_timeout_s) as client:
         resp = await client.post(
             f"{settings.ollama_cloud_base_url}/api/chat",
             headers={"Authorization": f"Bearer {settings.ollama_api_key}"} if settings.ollama_api_key else {},

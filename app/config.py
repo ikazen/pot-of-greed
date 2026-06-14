@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     # complex mode
     sufficiency_max_iter: int = 2
     complex_mode_timeout_s: int = 20
+    llm_timeout_s: int = 120
 
     # auth
     jwt_secret: str
