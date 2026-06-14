@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     embedding_model: str = "qwen3-embedding:8b"
     embedding_dim: int = 1024
     reranker_model: str = "bge-reranker-v2-m3"
+    llm_model: str = "qwen2.5:32b"
 
     # retrieval
     retrieve_top_k: int = 30

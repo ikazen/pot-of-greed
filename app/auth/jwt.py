@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
+import bcrypt
 import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from passlib.hash import bcrypt
 
 from app.config import Settings, get_settings
 
@@ -23,7 +23,7 @@ def authenticate_user(username: str, password: str, settings: Settings) -> bool:
     hashed = users.get(username)
     if not hashed:
         return False
-    return bcrypt.verify(password, hashed)
+    return bcrypt.checkpw(password.encode(), hashed.encode())
 
 
 async def get_current_user(

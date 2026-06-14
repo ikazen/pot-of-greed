@@ -36,7 +36,7 @@ async def simple_inference(query: str, chunks: list[Chunk]) -> str:
             f"{settings.ollama_cloud_url}/api/chat",
             headers={"Authorization": f"Bearer {settings.ollama_cloud_api_key}"} if settings.ollama_cloud_api_key else {},
             json={
-                "model": "llama3.1:latest",
+                "model": settings.llm_model,
                 "messages": [
                     {"role": "system", "content": _SIMPLE_SYSTEM},
                     {"role": "user", "content": user_message},
@@ -61,7 +61,7 @@ async def complex_inference(query: str, chunks: list[Chunk], system_extra: str =
             f"{settings.ollama_cloud_url}/api/chat",
             headers={"Authorization": f"Bearer {settings.ollama_cloud_api_key}"} if settings.ollama_cloud_api_key else {},
             json={
-                "model": "llama3.1:latest",
+                "model": settings.llm_model,
                 "messages": [
                     {"role": "system", "content": system},
                     {"role": "user", "content": user_message},
