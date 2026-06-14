@@ -67,3 +67,6 @@ CREATE INDEX IF NOT EXISTS case_chunks_embedding_idx
 -- 키워드 인덱스 (gin)
 CREATE INDEX IF NOT EXISTS article_chunks_tsv_idx ON article_chunks USING gin (tsv);
 CREATE INDEX IF NOT EXISTS case_chunks_tsv_idx    ON case_chunks    USING gin (tsv);
+
+-- small-to-big parent fetch 가속 (항/호 child -> 조 parent)
+CREATE INDEX IF NOT EXISTS article_chunks_parent_idx ON article_chunks (parent_chunk_id);
