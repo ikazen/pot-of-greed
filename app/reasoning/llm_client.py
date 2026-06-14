@@ -33,8 +33,8 @@ async def simple_inference(query: str, chunks: list[Chunk]) -> str:
 
     async with httpx.AsyncClient(timeout=settings.complex_mode_timeout_s + 5.0) as client:
         resp = await client.post(
-            f"{settings.ollama_cloud_url}/api/chat",
-            headers={"Authorization": f"Bearer {settings.ollama_cloud_api_key}"} if settings.ollama_cloud_api_key else {},
+            f"{settings.ollama_cloud_base_url}/api/chat",
+            headers={"Authorization": f"Bearer {settings.ollama_api_key}"} if settings.ollama_api_key else {},
             json={
                 "model": settings.llm_model,
                 "messages": [
@@ -58,8 +58,8 @@ async def complex_inference(query: str, chunks: list[Chunk], system_extra: str =
 
     async with httpx.AsyncClient(timeout=settings.complex_mode_timeout_s + 5.0) as client:
         resp = await client.post(
-            f"{settings.ollama_cloud_url}/api/chat",
-            headers={"Authorization": f"Bearer {settings.ollama_cloud_api_key}"} if settings.ollama_cloud_api_key else {},
+            f"{settings.ollama_cloud_base_url}/api/chat",
+            headers={"Authorization": f"Bearer {settings.ollama_api_key}"} if settings.ollama_api_key else {},
             json={
                 "model": settings.llm_model,
                 "messages": [

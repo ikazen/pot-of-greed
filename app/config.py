@@ -15,8 +15,8 @@ class Settings(BaseSettings):
     ollama_base_url: str
 
     # ollama cloud — llm inference
-    ollama_cloud_url: str
-    ollama_cloud_api_key: str = ""
+    ollama_cloud_base_url: str
+    ollama_api_key: str = ""
 
     # models
     embedding_model: str = "qwen3-embedding:8b"
