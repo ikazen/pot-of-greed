@@ -38,7 +38,7 @@ async def vector_search(
         ORDER BY embedding <=> $1::vector
         LIMIT $2
     """
-    vec = embedding
+    vec = "[" + ",".join(str(v) for v in embedding) + "]"
     async with pool.acquire() as conn:
         art_rows = await conn.fetch(article_sql, vec, top_k)
         case_rows = await conn.fetch(case_sql, vec, top_k)
