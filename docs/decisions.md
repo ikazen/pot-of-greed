@@ -64,6 +64,14 @@
 
 ---
 
+## J. 웹 UI 툴 선택
+
+**결정**: Chainlit (Python/async). 배포 = 전부 ops-vm — API 컨테이너 + UI 컨테이너 둘 다 nexus network join.
+
+**왜**: FastAPI와 동일 Python/async 런타임 → 런타임 추가 없음. sources/warnings 인용카드 네이티브 렌더 지원. Node 불필요. Open WebUI·LibreChat은 OpenAI 호환 어댑터 필요 + Node 무거움. Next.js는 제품화 단계용.
+
+---
+
 ## I. Hierarchical 청킹 / small-to-big
 
 **결정**: 계층 = 조문 한정. 검색 child = 항/호, 컨텍스트 parent = 조. 계층 표현은 pgvector `parent_chunk_id` fetch만 사용(그래프에 계층 엣지 없음). 판례는 계층 미적용.

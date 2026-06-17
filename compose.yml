@@ -14,6 +14,18 @@ services:
     networks:
       - nexus
 
+  ui:
+    image: registry.internal:5000/pot-of-greed-ui:${IMAGE_TAG:-latest}
+    build:
+      context: ui
+    container_name: pot-of-greed-ui
+    environment:
+      API_BASE_URL: http://pot-of-greed-api:8000
+      CHAINLIT_AUTH_SECRET: ${CHAINLIT_AUTH_SECRET}
+    restart: unless-stopped
+    networks:
+      - nexus
+
 networks:
   nexus:
     external: true

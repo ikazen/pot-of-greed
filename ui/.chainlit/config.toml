@@ -1,0 +1,11 @@
+[project]
+enable_telemetry = false
+session_timeout = 3600
+
+[UI]
+name = "세법 RAG"
+default_expand_messages = false
+hide_cot = true
+
+[features]
+prompt_playground = false
