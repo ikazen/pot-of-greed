@@ -8,9 +8,7 @@ _pool: asyncpg.Pool | None = None
 
 async def init_pg(dsn: str) -> None:
     global _pool
-    _pool = await asyncpg.create_pool(dsn=dsn, min_size=2, max_size=10)
-    async with _pool.acquire() as conn:
-        await register_vector(conn)
+    _pool = await asyncpg.create_pool(dsn=dsn, min_size=2, max_size=10, init=register_vector)
 
 
 async def close_pg() -> None:
