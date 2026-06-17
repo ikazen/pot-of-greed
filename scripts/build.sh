@@ -20,8 +20,7 @@ docker push "$REGISTRY/pot-of-greed:latest"
 docker build \
     -t "$REGISTRY/pot-of-greed-ui:$SHA" \
     -t "$REGISTRY/pot-of-greed-ui:latest" \
-    -f ui/Dockerfile \
-    . && \
+    ui/ && \
 docker push "$REGISTRY/pot-of-greed-ui:$SHA" && \
 docker push "$REGISTRY/pot-of-greed-ui:latest"
 
