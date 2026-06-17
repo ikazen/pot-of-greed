@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+from collections.abc import AsyncGenerator
+
 import httpx
 
 from app.config import get_settings
@@ -47,6 +50,40 @@ async def simple_inference(query: str, chunks: list[Chunk]) -> str:
         resp.raise_for_status()
     data = resp.json()
     return data["message"]["content"]
+
+
+async def stream_simple_inference(
+    query: str, chunks: list[Chunk]
+) -> AsyncGenerator[str, None]:
+    """단순 모드 스트리밍 추론 — 토큰을 yield."""
+    settings = get_settings()
+    context = _build_context(chunks)
+    user_message = f"다음 법령/판례를 참고하여 질의에 답변하십시오.\n\n{context}\n\n질의: {query}"
+
+    async with httpx.AsyncClient(timeout=settings.llm_timeout_s) as client:
+        async with client.stream(
+            "POST",
+            f"{settings.ollama_cloud_base_url}/api/chat",
+            headers={"Authorization": f"Bearer {settings.ollama_api_key}"} if settings.ollama_api_key else {},
+            json={
+                "model": settings.llm_model,
+                "messages": [
+                    {"role": "system", "content": _SIMPLE_SYSTEM},
+                    {"role": "user", "content": user_message},
+                ],
+                "stream": True,
+            },
+        ) as resp:
+            resp.raise_for_status()
+            async for line in resp.aiter_lines():
+                if not line:
+                    continue
+                chunk_data = json.loads(line)
+                token = chunk_data.get("message", {}).get("content", "")
+                if token:
+                    yield token
+                if chunk_data.get("done"):
+                    break
 
 
 async def complex_inference(query: str, chunks: list[Chunk], system_extra: str = "") -> str:

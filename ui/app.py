@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 
 import httpx
@@ -26,28 +27,44 @@ async def on_message(message: cl.Message):
     user: cl.User = cl.user_session.get("user")
     token = user.metadata["token"]
 
-    async with httpx.AsyncClient(timeout=60) as client:
-        resp = await client.post(
-            f"{API_URL}/chat",
+    msg = cl.Message(content="")
+    await msg.send()
+
+    sources_data: list[dict] = []
+    warnings_data: list[dict] = []
+
+    async with httpx.AsyncClient(timeout=90) as client:
+        async with client.stream(
+            "POST",
+            f"{API_URL}/chat/stream",
             json={"query": message.content, "mode": "simple"},
             headers={"Authorization": f"Bearer {token}"},
-        )
+        ) as resp:
+            if resp.status_code != 200:
+                await cl.Message(content=f"오류 {resp.status_code}").send()
+                return
 
-    if resp.status_code != 200:
-        await cl.Message(content=f"오류 {resp.status_code}: {resp.text}").send()
-        return
+            async for line in resp.aiter_lines():
+                if not line.startswith("data: "):
+                    continue
+                payload = line[len("data: "):]
+                if payload == "[DONE]":
+                    break
+                data = json.loads(payload)
+                if "token" in data:
+                    await msg.stream_token(data["token"])
+                elif "sources" in data:
+                    sources_data = data["sources"]
+                    warnings_data = data["warnings"]
 
-    data = resp.json()
     elements: list[cl.Text] = []
-
-    for src in data["sources"]:
+    for src in sources_data:
         label = src["ref"] or src["chunk_id"]
         kind = "조문" if src["type"] == "article" else "판례"
         elements.append(
             cl.Text(name=label, content=f"[{kind}] {label}", display="inline")
         )
-
-    for warn in data["warnings"]:
+    for warn in warnings_data:
         elements.append(
             cl.Text(
                 name=f"경고_{warn['ref']}",
@@ -56,4 +73,6 @@ async def on_message(message: cl.Message):
             )
         )
 
-    await cl.Message(content=data["answer"], elements=elements).send()
+    if elements:
+        msg.elements = elements
+        await msg.update()

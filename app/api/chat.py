@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import json
 import time
 from typing import Literal
 
 from fastapi import APIRouter, Depends
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.auth.jwt import get_current_user
@@ -16,7 +18,7 @@ from app.retrieval.reranker import rerank
 from app.retrieval.graph_expand import expand_1hop
 from app.retrieval.context_expand import expand_to_parents
 from app.retrieval.vector_search import Chunk
-from app.reasoning.llm_client import simple_inference
+from app.reasoning.llm_client import simple_inference, stream_simple_inference
 from app.reasoning.answer_builder import build_answer
 
 router = APIRouter(tags=["chat"])
@@ -40,36 +42,55 @@ async def chat(
     _: str = Depends(get_current_user),
 ) -> ChatResponse:
     t0 = time.monotonic()
-    settings = get_settings()
-
-    embedding = await embed_query(req.query)
-
-    vec_chunks, kw_chunks = await _parallel_search(embedding, req.query, settings.retrieve_top_k)
-
-    fused = rrf_fuse(vec_chunks, kw_chunks, k=settings.rrf_k, top_n=settings.retrieve_top_k)
-
-    reranked = await rerank(req.query, fused, top_k=settings.rerank_top_k)
-
-    extra_graph = await expand_1hop([c.chunk_id for c in reranked])
-    extra_chunk_ids = {g.chunk_id for g in extra_graph}
-    final_chunks = reranked + [
-        c for c in fused if c.chunk_id in extra_chunk_ids and c.chunk_id not in {r.chunk_id for r in reranked}
-    ]
-
-    # small-to-big: 정밀 매칭된 항/호 child 를 소속 조(parent) 문맥으로 확장
-    final_chunks += await expand_to_parents(final_chunks)
-
+    final_chunks = await _retrieve(req.query, get_settings())
     raw_answer = await simple_inference(req.query, final_chunks)
-
     answer = build_answer(raw_answer, final_chunks)
     elapsed = int((time.monotonic() - t0) * 1000)
-
     return ChatResponse(
         answer=answer.answer,
         sources=[vars(s) for s in answer.sources],
         warnings=[vars(w) for w in answer.warnings],
         elapsed_ms=elapsed,
     )
+
+
+@router.post("/chat/stream")
+async def chat_stream(
+    req: ChatRequest,
+    _: str = Depends(get_current_user),
+) -> StreamingResponse:
+    final_chunks = await _retrieve(req.query, get_settings())
+
+    async def _event_stream():
+        collected: list[str] = []
+        async for token in stream_simple_inference(req.query, final_chunks):
+            collected.append(token)
+            yield f"data: {json.dumps({'token': token})}\n\n"
+
+        raw_answer = "".join(collected)
+        answer = build_answer(raw_answer, final_chunks)
+        tail = {
+            "sources": [vars(s) for s in answer.sources],
+            "warnings": [vars(w) for w in answer.warnings],
+        }
+        yield f"data: {json.dumps(tail)}\n\n"
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(_event_stream(), media_type="text/event-stream")
+
+
+async def _retrieve(query: str, settings) -> list[Chunk]:
+    embedding = await embed_query(query)
+    vec_chunks, kw_chunks = await _parallel_search(embedding, query, settings.retrieve_top_k)
+    fused = rrf_fuse(vec_chunks, kw_chunks, k=settings.rrf_k, top_n=settings.retrieve_top_k)
+    reranked = await rerank(query, fused, top_k=settings.rerank_top_k)
+    extra_graph = await expand_1hop([c.chunk_id for c in reranked])
+    extra_chunk_ids = {g.chunk_id for g in extra_graph}
+    final_chunks = reranked + [
+        c for c in fused if c.chunk_id in extra_chunk_ids and c.chunk_id not in {r.chunk_id for r in reranked}
+    ]
+    final_chunks += await expand_to_parents(final_chunks)
+    return final_chunks
 
 
 async def _parallel_search(
