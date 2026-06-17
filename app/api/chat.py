@@ -14,6 +14,7 @@ from app.retrieval.keyword_search import keyword_search
 from app.retrieval.fusion import rrf_fuse
 from app.retrieval.reranker import rerank
 from app.retrieval.graph_expand import expand_1hop
+from app.retrieval.context_expand import expand_to_parents
 from app.retrieval.vector_search import Chunk
 from app.reasoning.llm_client import simple_inference
 from app.reasoning.answer_builder import build_answer
@@ -54,6 +55,9 @@ async def chat(
     final_chunks = reranked + [
         c for c in fused if c.chunk_id in extra_chunk_ids and c.chunk_id not in {r.chunk_id for r in reranked}
     ]
+
+    # small-to-big: 정밀 매칭된 항/호 child 를 소속 조(parent) 문맥으로 확장
+    final_chunks += await expand_to_parents(final_chunks)
 
     raw_answer = await simple_inference(req.query, final_chunks)
 

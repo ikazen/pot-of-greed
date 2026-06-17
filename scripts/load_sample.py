@@ -20,13 +20,62 @@ from neo4j import AsyncGraphDatabase
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from app.config import get_settings
 
+# 조 레벨 parent 청크 (small-to-big 의 big). clause_path=None, parent_chunk_id=None.
+# 그래프(관계 전용)에는 넣지 않고 PG 에만 적재 — 계층은 parent_chunk_id fetch 로만 표현(결정 I).
+PARENT_ARTICLES = [
+    {
+        "chunk_id": "art_소득세법_14",
+        "law_name": "소득세법",
+        "article_no": "제14조",
+        "clause_path": None,
+        "parent_chunk_id": None,
+        "text": "제14조(과세표준의 계산) 거주자의 종합소득에 대한 과세표준은 종합소득금액에서 종합소득공제를 적용한 금액으로 한다. 종합소득금액은 이자소득·배당소득·사업소득·근로소득·연금소득·기타소득의 합계액으로 한다.",
+        "effective_from": "2010-01-01",
+        "effective_to": None,
+        "is_current": True,
+    },
+    {
+        "chunk_id": "art_법인세법_52",
+        "law_name": "법인세법",
+        "article_no": "제52조",
+        "clause_path": None,
+        "parent_chunk_id": None,
+        "text": "제52조(부당행위계산의 부인) 납세지 관할 세무서장 또는 관할 지방국세청장은 내국법인의 행위 또는 소득금액의 계산이 특수관계인과의 거래로 인하여 조세의 부담을 부당하게 감소시킨 것으로 인정되는 경우 그 법인의 각 사업연도 소득금액을 다시 계산할 수 있다. 부당행위계산의 유형과 시가의 범위는 대통령령으로 정한다.",
+        "effective_from": "2019-01-01",
+        "effective_to": None,
+        "is_current": True,
+    },
+    {
+        "chunk_id": "art_법인세법_52_old",
+        "law_name": "법인세법",
+        "article_no": "제52조",
+        "clause_path": None,
+        "parent_chunk_id": None,
+        "text": "제52조(부당행위계산의 부인) [2018-12-31 이전 시행] 납세지 관할 세무서장 또는 관할 지방국세청장은 내국법인의 행위 또는 소득금액의 계산이 특수관계인과의 거래로 인하여 조세의 부담을 부당하게 감소시킨 것으로 인정되는 경우 그 법인의 각 사업연도 소득금액을 다시 계산할 수 있다.",
+        "effective_from": "2010-01-01",
+        "effective_to": "2018-12-31",
+        "is_current": False,
+    },
+    {
+        "chunk_id": "art_부가세법_26",
+        "law_name": "부가가치세법",
+        "article_no": "제26조",
+        "clause_path": None,
+        "parent_chunk_id": None,
+        "text": "제26조(재화 또는 용역의 공급에 대한 면세) 다음 각 호의 재화 또는 용역의 공급에 대하여는 부가가치세를 면제한다. 면세 대상의 구체적 범위는 대통령령으로 정한다.",
+        "effective_from": "2013-07-01",
+        "effective_to": None,
+        "is_current": True,
+    },
+]
+
 ARTICLES = [
     {
         "chunk_id": "art_소득세법_14_1",
         "law_name": "소득세법",
         "article_no": "제14조",
         "clause_path": "제1항",
-        "parent_chunk_id": None,
+        "parent_chunk_id": "art_소득세법_14",
         "text": "거주자의 종합소득에 대한 과세표준은 다음 각 호의 소득의 합계액으로 한다.",
         "effective_from": "2010-01-01",
         "effective_to": None,
@@ -37,7 +86,7 @@ ARTICLES = [
         "law_name": "법인세법",
         "article_no": "제52조",
         "clause_path": "제1항",
-        "parent_chunk_id": None,
+        "parent_chunk_id": "art_법인세법_52",
         "text": "납세지 관할 세무서장 또는 관할 지방국세청장은 내국법인의 행위 또는 소득금액의 계산이 특수관계인과의 거래로 인하여 그 법인의 소득에 대한 조세의 부담을 부당하게 감소시킨 것으로 인정되는 경우에는 그 법인의 행위 또는 소득금액의 계산에 관계없이 그 법인의 각 사업연도의 소득금액을 계산할 수 있다.",
         "effective_from": "2019-01-01",
         "effective_to": None,
@@ -48,7 +97,7 @@ ARTICLES = [
         "law_name": "법인세법",
         "article_no": "제52조",
         "clause_path": "제1항",
-        "parent_chunk_id": None,
+        "parent_chunk_id": "art_법인세법_52_old",
         "text": "납세지 관할 세무서장 또는 관할 지방국세청장은 내국법인의 행위 또는 소득금액의 계산이 특수관계인과의 거래로 인하여 그 법인의 소득에 대한 조세의 부담을 부당하게 감소시킨 것으로 인정되는 경우에는 그 법인의 각 사업연도의 소득금액을 계산할 수 있다.",
         "effective_from": "2010-01-01",
         "effective_to": "2018-12-31",
@@ -59,7 +108,7 @@ ARTICLES = [
         "law_name": "부가가치세법",
         "article_no": "제26조",
         "clause_path": "제1항",
-        "parent_chunk_id": None,
+        "parent_chunk_id": "art_부가세법_26",
         "text": "다음 각 호의 재화 또는 용역의 공급에 대하여는 부가가치세를 면제한다.",
         "effective_from": "2013-07-01",
         "effective_to": None,
@@ -143,7 +192,7 @@ async def load_pg(dsn: str) -> None:
     conn = await asyncpg.connect(dsn=dsn)
     try:
         await conn.execute(schema_sql)
-        for art in ARTICLES:
+        for art in PARENT_ARTICLES + ARTICLES:
             await conn.execute(
                 """
                 INSERT INTO article_chunks
