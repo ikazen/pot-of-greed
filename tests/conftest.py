@@ -100,12 +100,29 @@ def patch_retrieval(monkeypatch, sample_chunks):
     async def fake_expand_to_parents(chunks):
         return []
 
+    async def fake_hyde_embedding(query):
+        return [0.2] * 1024
+
+    async def fake_expand_2hop(chunk_ids):
+        return []
+
+    async def fake_decompose(query):
+        from app.agent.decompose import SubQuery
+        return [SubQuery(text=query, tool_hint="hybrid")]
+
+    def fake_route(subquery):
+        return "hybrid"
+
     monkeypatch.setattr("app.api.chat.embed_query", fake_embed_query)
     monkeypatch.setattr("app.api.chat.vector_search", fake_vector_search)
     monkeypatch.setattr("app.api.chat.keyword_search", fake_keyword_search)
     monkeypatch.setattr("app.api.chat.rerank", fake_rerank)
     monkeypatch.setattr("app.api.chat.expand_1hop", fake_expand_1hop)
+    monkeypatch.setattr("app.api.chat.expand_2hop", fake_expand_2hop)
     monkeypatch.setattr("app.api.chat.expand_to_parents", fake_expand_to_parents)
+    monkeypatch.setattr("app.api.chat.hyde_embedding", fake_hyde_embedding)
+    monkeypatch.setattr("app.api.chat.decompose", fake_decompose)
+    monkeypatch.setattr("app.api.chat.route", fake_route)
     return sample_chunks
 
 
@@ -129,12 +146,29 @@ def patch_low_score_retrieval(monkeypatch, low_score_chunks):
     async def fake_expand_to_parents(chunks):
         return []
 
+    async def fake_hyde_embedding(query):
+        return [0.2] * 1024
+
+    async def fake_expand_2hop(chunk_ids):
+        return []
+
+    async def fake_decompose(query):
+        from app.agent.decompose import SubQuery
+        return [SubQuery(text=query, tool_hint="hybrid")]
+
+    def fake_route(subquery):
+        return "hybrid"
+
     monkeypatch.setattr("app.api.chat.embed_query", fake_embed_query)
     monkeypatch.setattr("app.api.chat.vector_search", fake_vector_search)
     monkeypatch.setattr("app.api.chat.keyword_search", fake_keyword_search)
     monkeypatch.setattr("app.api.chat.rerank", fake_rerank)
     monkeypatch.setattr("app.api.chat.expand_1hop", fake_expand_1hop)
+    monkeypatch.setattr("app.api.chat.expand_2hop", fake_expand_2hop)
     monkeypatch.setattr("app.api.chat.expand_to_parents", fake_expand_to_parents)
+    monkeypatch.setattr("app.api.chat.hyde_embedding", fake_hyde_embedding)
+    monkeypatch.setattr("app.api.chat.decompose", fake_decompose)
+    monkeypatch.setattr("app.api.chat.route", fake_route)
     return low_score_chunks
 
 

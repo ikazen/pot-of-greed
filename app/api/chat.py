@@ -15,12 +15,15 @@ from app.retrieval.vector_search import vector_search
 from app.retrieval.keyword_search import keyword_search
 from app.retrieval.fusion import rrf_fuse
 from app.retrieval.reranker import rerank
-from app.retrieval.graph_expand import expand_1hop
+from app.retrieval.graph_expand import expand_1hop, expand_2hop
 from app.retrieval.context_expand import expand_to_parents
+from app.retrieval.hyde import hyde_embedding
 from app.retrieval.vector_search import Chunk
 from app.reasoning.llm_client import simple_inference, complex_inference, stream_simple_inference
 from app.reasoning.answer_builder import build_answer
 from app.router.mode_classifier import classify, should_promote
+from app.agent.decompose import decompose
+from app.agent.tool_router import route
 
 router = APIRouter(tags=["chat"])
 
@@ -114,9 +117,53 @@ async def _retrieve_simple(query: str, settings) -> list[Chunk]:
 
 
 async def _retrieve_complex(query: str, settings, simple_chunks: list[Chunk]) -> list[Chunk]:
-    # BON-144에서 분해→라우팅→HyDE→2홉으로 채워진다.
-    # 이 단계에선 단순 검색 결과를 그대로 사용 (골격만 확보).
-    return simple_chunks
+    """§5.2 1~4단계: 분해 → 도구 라우팅 → HyDE + 하이브리드 검색 → Neo4j 2홉 확장."""
+    import asyncio
+
+    subqueries = await decompose(query)
+
+    # 하위질의별 병렬 검색
+    async def _search_subquery(sq) -> list[Chunk]:
+        r = route(sq)
+        direct_emb, hyde_emb = await asyncio.gather(
+            embed_query(sq.text),
+            hyde_embedding(sq.text),
+        )
+        vec_direct, vec_hyde, kw = await asyncio.gather(
+            vector_search(direct_emb, top_k=settings.retrieve_top_k),
+            vector_search(hyde_emb, top_k=settings.retrieve_top_k),
+            keyword_search(sq.text, top_k=settings.retrieve_top_k),
+        )
+        # HyDE + 직접 임베딩 RRF 통합
+        fused = rrf_fuse(
+            vec_direct + vec_hyde,
+            kw,
+            k=settings.rrf_k,
+            top_n=settings.retrieve_top_k,
+        )
+        return fused
+
+    results = await asyncio.gather(*[_search_subquery(sq) for sq in subqueries])
+
+    # 하위질의 결과 병합 — chunk_id 기준 dedup, 최고 점수 유지
+    merged: dict[str, Chunk] = {}
+    for chunk_list in results:
+        for c in chunk_list:
+            if c.chunk_id not in merged or c.score > merged[c.chunk_id].score:
+                merged[c.chunk_id] = c
+    fused_all = sorted(merged.values(), key=lambda c: c.score, reverse=True)
+
+    reranked = await rerank(query, fused_all, top_k=settings.rerank_top_k)
+
+    # 2홉 그래프 확장: chunk_ids를 fused pool에서 조회
+    graph_chunks = await expand_2hop([c.chunk_id for c in reranked])
+    graph_ids = {g.chunk_id for g in graph_chunks}
+    reranked_ids = {c.chunk_id for c in reranked}
+    extra = [c for c in fused_all if c.chunk_id in graph_ids and c.chunk_id not in reranked_ids]
+
+    final_chunks = reranked + extra
+    final_chunks += await expand_to_parents(final_chunks)
+    return final_chunks
 
 
 async def _parallel_search(
