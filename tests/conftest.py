@@ -121,8 +121,12 @@ def patch_retrieval(monkeypatch, sample_chunks):
     monkeypatch.setattr("app.api.chat.expand_2hop", fake_expand_2hop)
     monkeypatch.setattr("app.api.chat.expand_to_parents", fake_expand_to_parents)
     monkeypatch.setattr("app.api.chat.hyde_embedding", fake_hyde_embedding)
+    async def fake_sufficiency_loop(query, retrieve_fn, settings, deadline):
+        return await retrieve_fn(query)
+
     monkeypatch.setattr("app.api.chat.decompose", fake_decompose)
     monkeypatch.setattr("app.api.chat.route", fake_route)
+    monkeypatch.setattr("app.api.chat.sufficiency_loop", fake_sufficiency_loop)
     return sample_chunks
 
 
@@ -167,8 +171,12 @@ def patch_low_score_retrieval(monkeypatch, low_score_chunks):
     monkeypatch.setattr("app.api.chat.expand_2hop", fake_expand_2hop)
     monkeypatch.setattr("app.api.chat.expand_to_parents", fake_expand_to_parents)
     monkeypatch.setattr("app.api.chat.hyde_embedding", fake_hyde_embedding)
+    async def fake_sufficiency_loop(query, retrieve_fn, settings, deadline):
+        return await retrieve_fn(query)
+
     monkeypatch.setattr("app.api.chat.decompose", fake_decompose)
     monkeypatch.setattr("app.api.chat.route", fake_route)
+    monkeypatch.setattr("app.api.chat.sufficiency_loop", fake_sufficiency_loop)
     return low_score_chunks
 
 
