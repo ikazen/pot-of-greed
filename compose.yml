@@ -22,6 +22,7 @@ services:
     environment:
       API_BASE_URL: http://pot-of-greed-api:8000
       CHAINLIT_AUTH_SECRET: ${CHAINLIT_AUTH_SECRET}
+      CHAINLIT_DB_DSN: ${CHAINLIT_DB_DSN}
     restart: unless-stopped
     networks:
       - nexus

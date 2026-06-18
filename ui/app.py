@@ -6,6 +6,8 @@ import os
 import httpx
 import chainlit as cl
 
+import data_layer  # noqa: F401 — registers @cl.data_layer via side-effect
+
 API_URL = os.environ.get("API_BASE_URL", "http://pot-of-greed-api:8000")
 
 
@@ -20,6 +22,11 @@ async def auth_callback(username: str, password: str):
         return None
     token = resp.json()["access_token"]
     return cl.User(identifier=username, metadata={"token": token})
+
+
+@cl.on_chat_resume
+async def on_chat_resume(thread):
+    pass
 
 
 @cl.on_message
