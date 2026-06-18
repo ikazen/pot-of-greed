@@ -124,9 +124,19 @@ def patch_retrieval(monkeypatch, sample_chunks):
     async def fake_sufficiency_loop(query, retrieve_fn, settings, deadline):
         return await retrieve_fn(query)
 
+    from app.agent.grounding_check import GroundingResult
+
+    async def fake_check_answer(answer, sources):
+        return GroundingResult(grounded=True)
+
+    def fake_apply_grounding(raw_answer, result, action):
+        return raw_answer
+
     monkeypatch.setattr("app.api.chat.decompose", fake_decompose)
     monkeypatch.setattr("app.api.chat.route", fake_route)
     monkeypatch.setattr("app.api.chat.sufficiency_loop", fake_sufficiency_loop)
+    monkeypatch.setattr("app.api.chat.check_answer", fake_check_answer)
+    monkeypatch.setattr("app.api.chat.apply_grounding", fake_apply_grounding)
     return sample_chunks
 
 
@@ -174,10 +184,34 @@ def patch_low_score_retrieval(monkeypatch, low_score_chunks):
     async def fake_sufficiency_loop(query, retrieve_fn, settings, deadline):
         return await retrieve_fn(query)
 
+    from app.agent.grounding_check import GroundingResult
+
+    async def fake_check_answer(answer, sources):
+        return GroundingResult(grounded=True)
+
+    def fake_apply_grounding(raw_answer, result, action):
+        return raw_answer
+
     monkeypatch.setattr("app.api.chat.decompose", fake_decompose)
     monkeypatch.setattr("app.api.chat.route", fake_route)
     monkeypatch.setattr("app.api.chat.sufficiency_loop", fake_sufficiency_loop)
+    monkeypatch.setattr("app.api.chat.check_answer", fake_check_answer)
+    monkeypatch.setattr("app.api.chat.apply_grounding", fake_apply_grounding)
     return low_score_chunks
+
+
+@pytest.fixture
+def patch_grounding(monkeypatch):
+    from app.agent.grounding_check import GroundingResult
+
+    async def fake_check_answer(answer, sources):
+        return GroundingResult(grounded=True)
+
+    def fake_apply_grounding(raw_answer, result, action):
+        return raw_answer
+
+    monkeypatch.setattr("app.api.chat.check_answer", fake_check_answer)
+    monkeypatch.setattr("app.api.chat.apply_grounding", fake_apply_grounding)
 
 
 @pytest.fixture

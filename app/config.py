@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     complex_mode_timeout_s: int = 20
     llm_timeout_s: int = 120
 
+    # grounding gate (F1)
+    grounding_action: str = "flag"  # "flag" | "strip"
+
     # law.go.kr OPEN API (법제처 국가법령정보 공동활용)
     law_api_oc: str = ""
     law_api_base_url: str = "http://www.law.go.kr/DRF"
