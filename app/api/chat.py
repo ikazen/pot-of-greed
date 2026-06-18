@@ -25,6 +25,7 @@ from app.router.mode_classifier import classify, should_promote
 from app.agent.decompose import decompose
 from app.agent.tool_router import route
 from app.agent.sufficiency import sufficiency_loop
+from app.agent.grounding_check import check_answer, apply_grounding
 
 router = APIRouter(tags=["chat"])
 
@@ -56,6 +57,8 @@ async def chat(
     if mode == "complex" or should_promote(top_score, settings.fallback_score_threshold):
         final_chunks = await _retrieve_complex(req.query, settings, simple_chunks)
         raw_answer = await complex_inference(req.query, final_chunks)
+        grounding = await check_answer(raw_answer, final_chunks)
+        raw_answer = apply_grounding(raw_answer, grounding, settings.grounding_action)
     else:
         final_chunks = simple_chunks
         raw_answer = await simple_inference(req.query, final_chunks)
