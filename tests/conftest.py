@@ -132,11 +132,15 @@ def patch_retrieval(monkeypatch, sample_chunks):
     def fake_apply_grounding(raw_answer, result, action):
         return raw_answer
 
+    async def fake_legal_reasoning_layer(query, chunks, warnings):
+        return None
+
     monkeypatch.setattr("app.api.chat.decompose", fake_decompose)
     monkeypatch.setattr("app.api.chat.route", fake_route)
     monkeypatch.setattr("app.api.chat.sufficiency_loop", fake_sufficiency_loop)
     monkeypatch.setattr("app.api.chat.check_answer", fake_check_answer)
     monkeypatch.setattr("app.api.chat.apply_grounding", fake_apply_grounding)
+    monkeypatch.setattr("app.api.chat.legal_reasoning_layer", fake_legal_reasoning_layer)
     return sample_chunks
 
 
@@ -192,11 +196,15 @@ def patch_low_score_retrieval(monkeypatch, low_score_chunks):
     def fake_apply_grounding(raw_answer, result, action):
         return raw_answer
 
+    async def fake_legal_reasoning_layer(query, chunks, warnings):
+        return None
+
     monkeypatch.setattr("app.api.chat.decompose", fake_decompose)
     monkeypatch.setattr("app.api.chat.route", fake_route)
     monkeypatch.setattr("app.api.chat.sufficiency_loop", fake_sufficiency_loop)
     monkeypatch.setattr("app.api.chat.check_answer", fake_check_answer)
     monkeypatch.setattr("app.api.chat.apply_grounding", fake_apply_grounding)
+    monkeypatch.setattr("app.api.chat.legal_reasoning_layer", fake_legal_reasoning_layer)
     return low_score_chunks
 
 

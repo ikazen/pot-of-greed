@@ -15,12 +15,12 @@ from app.retrieval.vector_search import vector_search
 from app.retrieval.keyword_search import keyword_search
 from app.retrieval.fusion import rrf_fuse
 from app.retrieval.reranker import rerank
-from app.retrieval.graph_expand import expand_1hop, expand_2hop
+from app.retrieval.graph_expand import expand_1hop, expand_2hop, filter_by_transaction_date
 from app.retrieval.context_expand import expand_to_parents
 from app.retrieval.hyde import hyde_embedding
 from app.retrieval.vector_search import Chunk
 from app.reasoning.llm_client import simple_inference, complex_inference, stream_simple_inference
-from app.reasoning.answer_builder import build_answer
+from app.reasoning.answer_builder import build_answer, legal_reasoning_layer
 from app.router.mode_classifier import classify, should_promote
 from app.agent.decompose import decompose
 from app.agent.tool_router import route
@@ -59,11 +59,15 @@ async def chat(
         raw_answer = await complex_inference(req.query, final_chunks)
         grounding = await check_answer(raw_answer, final_chunks)
         raw_answer = apply_grounding(raw_answer, grounding, settings.grounding_action)
+        answer = build_answer(raw_answer, final_chunks)
+        # 3층 법리 판단 — warnings(1·2층 사실)를 컨텍스트로 제공
+        reasoning = await legal_reasoning_layer(req.query, final_chunks, answer.warnings)
+        if reasoning:
+            answer.answer += f"\n\n## 법리 검토\n{reasoning}"
     else:
         final_chunks = simple_chunks
         raw_answer = await simple_inference(req.query, final_chunks)
-
-    answer = build_answer(raw_answer, final_chunks)
+        answer = build_answer(raw_answer, final_chunks)
     elapsed = int((time.monotonic() - t0) * 1000)
     return ChatResponse(
         answer=answer.answer,
@@ -154,10 +158,26 @@ async def _search_complex(query: str, settings) -> list[Chunk]:
     return sorted(merged.values(), key=lambda c: c.score, reverse=True)
 
 
-async def _retrieve_complex(query: str, settings, simple_chunks: list[Chunk]) -> list[Chunk]:
-    """§5.2 1~5단계: 분해/HyDE/2홉 + 충분성 루프."""
-    import asyncio
+def _extract_transaction_date(query: str) -> str | None:
+    """질의에서 거래시점 날짜 추출 (ISO 형식 반환). 미발견 시 None."""
+    import re
+    # ISO: 2018-06-01 / 2018.06.01
+    m = re.search(r"(\d{4})[-./](\d{1,2})[-./](\d{1,2})", query)
+    if m:
+        return f"{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
+    # 한국어: 2018년 6월 15일
+    m = re.search(r"(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일", query)
+    if m:
+        return f"{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
+    # 연월만: 2021년 3월
+    m = re.search(r"(\d{4})년\s*(\d{1,2})월", query)
+    if m:
+        return f"{m.group(1)}-{int(m.group(2)):02d}-01"
+    return None
 
+
+async def _retrieve_complex(query: str, settings, simple_chunks: list[Chunk]) -> list[Chunk]:
+    """§5.2 1~5단계: 분해/HyDE/2홉 + 충분성 루프 + 2층 시점 필터."""
     deadline = time.monotonic() + settings.complex_mode_timeout_s
 
     fused_all = await sufficiency_loop(
@@ -170,6 +190,12 @@ async def _retrieve_complex(query: str, settings, simple_chunks: list[Chunk]) ->
     reranked = await rerank(query, fused_all, top_k=settings.rerank_top_k)
 
     graph_chunks = await expand_2hop([c.chunk_id for c in reranked])
+
+    # 2층 시점 정합: 질의에 거래시점 명시 시 조문 유효범위 필터
+    txn_date = _extract_transaction_date(query)
+    if txn_date:
+        graph_chunks = filter_by_transaction_date(graph_chunks, txn_date)
+
     graph_ids = {g.chunk_id for g in graph_chunks}
     reranked_ids = {c.chunk_id for c in reranked}
     extra = [c for c in fused_all if c.chunk_id in graph_ids and c.chunk_id not in reranked_ids]

@@ -1,14 +1,26 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
+
+import httpx
 
 from app.retrieval.vector_search import Chunk
 
-_WARNING_MESSAGES = {
-    "overruled": "이 판례는 이후 판례에 의해 변경되었습니다. 현행 법리 적용 시 결론이 달라질 수 있습니다.",
-    "law_amended": "이 판례의 근거 조문이 판결 이후 개정되었습니다. 현행법 적용 시 결론이 달라질 수 있습니다.",
-    "uncertain": "이 판례의 현행 유효성이 불확실합니다. 최신 판례를 별도로 확인하십시오.",
-}
+logger = logging.getLogger(__name__)
+
+
+def _build_warning_message(flag: str, meta: dict) -> str:
+    """§4 표기 방식: 판례별 구체적 경고 문구 생성."""
+    if flag == "overruled":
+        return "[주의] 이 판례는 이후 판례에 의해 변경되었습니다. 현행 법리 적용 시 결론이 달라질 수 있습니다."
+    if flag == "law_amended":
+        article = meta.get("amended_article") or meta.get("article_ref") or ""
+        suffix = f" ({article} 개정)" if article else ""
+        return f"[주의] 이 판례의 근거 조문이 판결 이후 개정되었습니다{suffix}. 현행법 적용 시 결론이 달라질 수 있습니다."
+    if flag == "uncertain":
+        return "[주의] 이 판례의 현행 유효성이 불확실합니다. 최신 판례를 별도로 확인하십시오."
+    return f"[주의] 유효성 상태: {flag}"
 
 
 @dataclass
@@ -40,6 +52,9 @@ class Answer:
         }
 
 
+_VALIDITY_FLAGS = {"overruled", "law_amended", "uncertain"}
+
+
 def build_answer(raw_answer: str, chunks: list[Chunk]) -> Answer:
     sources: list[Source] = []
     warnings: list[Warning] = []
@@ -56,12 +71,70 @@ def build_answer(raw_answer: str, chunks: list[Chunk]) -> Answer:
             ref = chunk.meta.get("case_no", chunk.chunk_id)
             sources.append(Source(type="case", ref=ref, chunk_id=chunk.chunk_id))
             flag = chunk.meta.get("validity_flag")
-            if flag and flag in _WARNING_MESSAGES:
+            if flag and flag in _VALIDITY_FLAGS:
                 warnings.append(Warning(
                     chunk_id=chunk.chunk_id,
                     ref=ref,
                     validity_flag=flag,
-                    message=_WARNING_MESSAGES[flag],
+                    message=_build_warning_message(flag, chunk.meta),
                 ))
 
     return Answer(answer=raw_answer, sources=sources, warnings=warnings)
+
+
+_LEGAL_REASONING_SYSTEM = (
+    "당신은 세법 법리 분석 전문가입니다. "
+    "제공된 판례 유효성 정보(1층: validity_flag, 2층: 시점 정합)를 바탕으로 "
+    "현재 법리가 여전히 유효한지, 개정된 조문에도 동일 법리가 적용되는지 판단하십시오. "
+    "판단 근거를 2~3문장으로 간결하게 작성하십시오."
+)
+
+
+async def legal_reasoning_layer(
+    query: str,
+    chunks: list[Chunk],
+    warnings: list[Warning],
+) -> str | None:
+    """3층 법리 판단 (복잡 모드 한정) — 1·2층 사실을 컨텍스트로 제공 후 LLM 판단.
+
+    판단 결과 문자열 반환. 경고가 없거나 LLM 오류 시 None 반환.
+    """
+    if not warnings:
+        return None
+
+    from app.config import get_settings
+    settings = get_settings()
+
+    validity_facts = "\n".join(
+        f"- {w.ref}: {w.message}" for w in warnings
+    )
+    article_refs = "\n".join(
+        f"- {c.meta.get('law_name', '')} {c.meta.get('article_no', '')}"
+        for c in chunks if c.table == "article"
+    )
+    user_msg = (
+        f"질의: {query}\n\n"
+        f"유효성 경고 (1층):\n{validity_facts}\n\n"
+        f"관련 조문 (2층):\n{article_refs or '없음'}\n\n"
+        "위 사실을 바탕으로 현재 법리 유효성을 판단하십시오."
+    )
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                f"{settings.ollama_cloud_base_url}/api/chat",
+                headers={"Authorization": f"Bearer {settings.ollama_api_key}"} if settings.ollama_api_key else {},
+                json={
+                    "model": settings.llm_model,
+                    "messages": [
+                        {"role": "system", "content": _LEGAL_REASONING_SYSTEM},
+                        {"role": "user", "content": user_msg},
+                    ],
+                    "stream": False,
+                },
+            )
+            resp.raise_for_status()
+        return resp.json()["message"]["content"].strip()
+    except Exception:
+        logger.debug("legal_reasoning_layer failed", exc_info=True)
+        return None
