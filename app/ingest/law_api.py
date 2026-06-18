@@ -66,7 +66,8 @@ def _parse_law_list(root: ET.Element) -> list[RawLawListItem]:
             RawLawListItem(
                 law_id=_txt(law.find("법령ID")),
                 law_name=_txt(law.find("법령명한글")),
-                mst=_txt(law.find("MST")),
+                # 실제 API: <MST> 태그 없음. <법령일련번호>가 lawService.do?MST= 에 쓰는 키
+                mst=_txt(law.find("법령일련번호")),
                 effective_date=_txt(law.find("시행일자")),
                 is_current=_txt(law.find("현행연혁코드")) == "현행",
             )
@@ -96,33 +97,63 @@ async def list_laws(law_name: str) -> list[RawLawListItem]:
     return results
 
 
+def _normalize_clause_no(s: str) -> str:
+    """항번호 정규화: ①②③... → 1,2,3..."""
+    s = s.strip()
+    if s and "①" <= s[0] <= "⑳":  # ①=U+2460 ~ ⑳=U+2473
+        return str(ord(s[0]) - 0x245F)
+    return s.strip(".()")
+
+
+def _normalize_sub_no(s: str) -> str:
+    """호번호 정규화: "1." → "1", "가." → "가" """
+    return s.strip().rstrip(".")
+
+
+def _article_no(unit: ET.Element) -> str:
+    """조문번호 + 가지번호 조합: 조=1, 가지=2 → "1의2" """
+    no = _txt(unit.find("조문번호"))
+    branch = _txt(unit.find("조문가지번호"))
+    return f"{no}의{branch}" if branch else no
+
+
 def parse_law_xml(root: ET.Element) -> RawLaw:
     info = root.find("기본정보") or root
     law_name = _txt(info.find("법령명_한글")) or _txt(info.find("법령명한글"))
     law_id = _txt(info.find("법령ID"))
-    mst = _txt(info.find("MST"))
     effective_from = _txt(info.find("시행일자"))
 
     articles: list[RawArticle] = []
     for unit in root.findall(".//조문단위"):
-        no = _txt(unit.find("조문번호"))
+        # 전문(preamble) 및 부칙 제외
+        kind = _txt(unit.find("조문여부"))
+        if kind not in ("조문", ""):
+            continue
+
+        no = _article_no(unit)
         title = _txt(unit.find("조문제목"))
         text = _txt(unit.find("조문내용"))
-        eff = _txt(unit.find("시행일자")) or effective_from
+        # 실제 API: 조문시행일자 (fixture: 시행일자)
+        eff = _txt(unit.find("조문시행일자")) or _txt(unit.find("시행일자")) or effective_from
 
         clauses: list[RawClause] = []
         for clause_el in unit.findall("항"):
             sub_clauses = [
-                RawSubClause(no=_txt(h.find("호번호")), text=_txt(h.find("호내용")))
+                RawSubClause(
+                    no=_normalize_sub_no(_txt(h.find("호번호"))),
+                    text=_txt(h.find("호내용")),
+                )
                 for h in clause_el.findall("호")
             ]
             clauses.append(
                 RawClause(
-                    no=_txt(clause_el.find("항번호")),
+                    no=_normalize_clause_no(_txt(clause_el.find("항번호"))),
                     text=_txt(clause_el.find("항내용")),
                     sub_clauses=sub_clauses,
                 )
             )
+        if not no:
+            continue
         articles.append(RawArticle(no=no, title=title, text=text, effective_from=eff, clauses=clauses))
 
     history: list[RawHistoryEntry] = []
@@ -138,7 +169,7 @@ def parse_law_xml(root: ET.Element) -> RawLaw:
     return RawLaw(
         law_name=law_name,
         law_id=law_id,
-        mst=mst,
+        mst="",  # 목록 조회 시 법령일련번호로 획득 — 상세 응답에는 없음
         effective_from=effective_from,
         articles=articles,
         history=history,
