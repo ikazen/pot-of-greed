@@ -18,8 +18,9 @@ from app.retrieval.reranker import rerank
 from app.retrieval.graph_expand import expand_1hop
 from app.retrieval.context_expand import expand_to_parents
 from app.retrieval.vector_search import Chunk
-from app.reasoning.llm_client import simple_inference, stream_simple_inference
+from app.reasoning.llm_client import simple_inference, complex_inference, stream_simple_inference
 from app.reasoning.answer_builder import build_answer
+from app.router.mode_classifier import classify, should_promote
 
 router = APIRouter(tags=["chat"])
 
@@ -42,8 +43,19 @@ async def chat(
     _: str = Depends(get_current_user),
 ) -> ChatResponse:
     t0 = time.monotonic()
-    final_chunks = await _retrieve(req.query, get_settings())
-    raw_answer = await simple_inference(req.query, final_chunks)
+    settings = get_settings()
+    mode = classify(req.query, req.mode)
+
+    simple_chunks = await _retrieve_simple(req.query, settings)
+    top_score = simple_chunks[0].score if simple_chunks else 0.0
+
+    if mode == "complex" or should_promote(top_score, settings.fallback_score_threshold):
+        final_chunks = await _retrieve_complex(req.query, settings, simple_chunks)
+        raw_answer = await complex_inference(req.query, final_chunks)
+    else:
+        final_chunks = simple_chunks
+        raw_answer = await simple_inference(req.query, final_chunks)
+
     answer = build_answer(raw_answer, final_chunks)
     elapsed = int((time.monotonic() - t0) * 1000)
     return ChatResponse(
@@ -59,7 +71,15 @@ async def chat_stream(
     req: ChatRequest,
     _: str = Depends(get_current_user),
 ) -> StreamingResponse:
-    final_chunks = await _retrieve(req.query, get_settings())
+    settings = get_settings()
+    mode = classify(req.query, req.mode)
+    simple_chunks = await _retrieve_simple(req.query, settings)
+    top_score = simple_chunks[0].score if simple_chunks else 0.0
+
+    if mode == "complex" or should_promote(top_score, settings.fallback_score_threshold):
+        final_chunks = await _retrieve_complex(req.query, settings, simple_chunks)
+    else:
+        final_chunks = simple_chunks
 
     async def _event_stream():
         collected: list[str] = []
@@ -79,7 +99,7 @@ async def chat_stream(
     return StreamingResponse(_event_stream(), media_type="text/event-stream")
 
 
-async def _retrieve(query: str, settings) -> list[Chunk]:
+async def _retrieve_simple(query: str, settings) -> list[Chunk]:
     embedding = await embed_query(query)
     vec_chunks, kw_chunks = await _parallel_search(embedding, query, settings.retrieve_top_k)
     fused = rrf_fuse(vec_chunks, kw_chunks, k=settings.rrf_k, top_n=settings.retrieve_top_k)
@@ -91,6 +111,12 @@ async def _retrieve(query: str, settings) -> list[Chunk]:
     ]
     final_chunks += await expand_to_parents(final_chunks)
     return final_chunks
+
+
+async def _retrieve_complex(query: str, settings, simple_chunks: list[Chunk]) -> list[Chunk]:
+    # BON-144에서 분해→라우팅→HyDE→2홉으로 채워진다.
+    # 이 단계에선 단순 검색 결과를 그대로 사용 (골격만 확보).
+    return simple_chunks
 
 
 async def _parallel_search(
