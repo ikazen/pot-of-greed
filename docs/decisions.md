@@ -72,6 +72,14 @@
 
 ---
 
+## K. Chainlit 대화 영속화
+
+**결정**: 공식 `SQLAlchemyDataLayer` + 기존 `potofgreed` Postgres. Literal AI 클라우드 사용 안 함. storage provider 보류(텍스트 전용).
+
+**왜**: 외부 SaaS 의존 없이 이미 운용 중인 DB에 붙임. `SQLAlchemyDataLayer`가 공식 지원 경로라 커스텀 `BaseDataLayer` 직접 구현(메서드 ~15개) 불필요 — 단순함 우선. 출처/경고 `cl.Text` 엘리먼트는 storage provider 없으면 Chainlit이 경고 후 스킵(런타임 에러 없음). MinIO S3 storage client 연결로 추후 확장 가능.
+
+---
+
 ## I. Hierarchical 청킹 / small-to-big
 
 **결정**: 계층 = 조문 한정. 검색 child = 항/호, 컨텍스트 parent = 조. 계층 표현은 pgvector `parent_chunk_id` fetch만 사용(그래프에 계층 엣지 없음). 판례는 계층 미적용.

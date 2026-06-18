@@ -17,7 +17,19 @@ cp .env.example .env
 #   OLLAMA_BASE_URL (온프레미스)
 #   OLLAMA_CLOUD_URL
 #   JWT_SECRET
+#   CHAINLIT_DB_DSN (postgresql+asyncpg://... 형식, UI 대화 영속화용)
 ```
+
+## DB 스키마 적용
+
+도메인 스키마와 Chainlit 대화 테이블을 한 번 적용한다.
+
+```bash
+psql "$PG_DSN" -f sql/schema.sql
+psql "$PG_DSN" -f sql/chainlit_schema.sql
+```
+
+이후 UI에 로그인하면 대화가 자동 저장되고, 좌측 사이드바에서 과거 thread를 열어 이어할 수 있다.
 
 ## 실행
 
