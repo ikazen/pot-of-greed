@@ -20,7 +20,7 @@ async def embed_query(text: str) -> list[float]:
 
 async def embed_batch(texts: list[str]) -> list[list[float]]:
     settings = get_settings()
-    async with httpx.AsyncClient(timeout=120.0) as client:
+    async with httpx.AsyncClient(timeout=300.0) as client:
         resp = await client.post(
             f"{settings.ollama_base_url}/api/embed",
             json={"model": settings.embedding_model, "input": texts, "dimensions": settings.embedding_dim},
