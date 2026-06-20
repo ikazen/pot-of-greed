@@ -64,22 +64,23 @@ async def on_message(message: cl.Message):
                     sources_data = data["sources"]
                     warnings_data = data["warnings"]
 
-    elements: list[cl.Text] = []
-    for src in sources_data:
-        label = src["ref"] or src["chunk_id"]
-        kind = "조문" if src["type"] == "article" else "판례"
-        elements.append(
-            cl.Text(name=label, content=f"[{kind}] {label}", display="inline")
-        )
-    for warn in warnings_data:
-        elements.append(
-            cl.Text(
-                name=f"경고_{warn['ref']}",
-                content=f"[주의] {warn['message']}",
-                display="inline",
-            )
-        )
+    extra: list[str] = []
 
-    if elements:
-        msg.elements = elements
+    if warnings_data:
+        warn_lines = "\n".join(f"> {w['message']}" for w in warnings_data)
+        extra.append(warn_lines)
+
+    if sources_data:
+        lines = ["\n---\n참고 출처"]
+        for src in sources_data:
+            label = src["ref"] or src["chunk_id"]
+            kind = "조문" if src["type"] == "article" else "판례"
+            summary = src.get("summary", "")
+            lines.append(f"- [{kind}] {label}")
+            if summary:
+                lines.append(f"  {summary}")
+        extra.append("\n".join(lines))
+
+    if extra:
+        msg.content += "\n\n" + "\n\n".join(extra)
         await msg.update()
