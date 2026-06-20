@@ -59,7 +59,7 @@ async def chat(
         raw_answer = await complex_inference(req.query, final_chunks)
         grounding = await check_answer(raw_answer, final_chunks)
         raw_answer = apply_grounding(raw_answer, grounding, settings.grounding_action)
-        answer = build_answer(raw_answer, final_chunks)
+        answer = build_answer(raw_answer, final_chunks, limit=settings.source_top_k)
         # 3층 법리 판단 — warnings(1·2층 사실)를 컨텍스트로 제공
         reasoning = await legal_reasoning_layer(req.query, final_chunks, answer.warnings)
         if reasoning:
@@ -67,7 +67,7 @@ async def chat(
     else:
         final_chunks = simple_chunks
         raw_answer = await simple_inference(req.query, final_chunks)
-        answer = build_answer(raw_answer, final_chunks)
+        answer = build_answer(raw_answer, final_chunks, limit=settings.source_top_k)
     elapsed = int((time.monotonic() - t0) * 1000)
     return ChatResponse(
         answer=answer.answer,
@@ -99,7 +99,7 @@ async def chat_stream(
             yield f"data: {json.dumps({'token': token})}\n\n"
 
         raw_answer = "".join(collected)
-        answer = build_answer(raw_answer, final_chunks)
+        answer = build_answer(raw_answer, final_chunks, limit=settings.source_top_k)
         tail = {
             "sources": [vars(s) for s in answer.sources],
             "warnings": [vars(w) for w in answer.warnings],

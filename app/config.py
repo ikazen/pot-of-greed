@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     # grounding gate (F1)
     grounding_action: str = "flag"  # "flag" | "strip"
 
+    # source cards shown in chat UI
+    source_top_k: int = 3
+
     # law.go.kr OPEN API (법제처 국가법령정보 공동활용)
     law_api_oc: str = ""
     law_api_base_url: str = "http://www.law.go.kr/DRF"
