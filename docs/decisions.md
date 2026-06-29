@@ -93,3 +93,33 @@
 **결정**: `app/llm/LLMProvider` Protocol로 채팅 LLM 호출 추상화. 기본 provider = Gemini(`gemini-2.5-flash`). 교체는 `LLM_PROVIDER` 환경변수 한 줄로 가능(`"gemini"` | `"ollama"`).
 
 **왜**: 기존 코드는 동일한 Ollama Cloud httpx 패턴이 7개 호출 지점에 중복. provider 교체 시 7곳 수정이 필요했음. 추상화 후 `get_llm_provider()` 팩토리 하나로 수렴 — 신규 provider 추가도 단일 파일로 격리 가능. Gemini SDK(`google-genai`)를 선택한 이유: REST 스펙 변동·SSE 스트리밍 파싱의 견고함. 임베딩/리랭커는 범위 밖 — pgvector 벡터공간이 기수집 코퍼스와 묶여 있어 교체 시 전체 재인제스트 필요(결정 C와 연동).
+
+---
+
+## M. 답변 전략 — RAG → RARR 전면 전환
+
+**결정**: retrieve-then-generate(RAG) 폐기. RARR(Researching and Revising what LMs say) 전면 채택, 전 모드(단순·복잡). Gemini가 검색 없이 자유 초안 생성 → 코퍼스를 사후 research·revise·attribution 백본으로만 사용.
+
+**왜**: 검색이 생성을 선제약하던 RAG에서 Gemini의 자연스러운 법리 서술이 청크에 갇혔다. RARR은 코퍼스를 "생성 제약"이 아니라 "사실확인 백본"으로 전환 — 법률 도메인 최대 리스크인 할루시네이션 조문/판례번호를 권위 코퍼스로 잡아 교정하고, 인용 없는 주장에 출처를 사후 부착한다. string-match 출처 휴리스틱보다 실제 attribution이 강력.
+
+- 결정 A의 `classify()` seam은 폐기 대신 **RARR 강도 노브**로 재해석: simple=RARR-lite(CQGen 생략·단일검색·인용주장만 검증), complex=full RARR(CQGen+HyDE+2hop+충분성+3층).
+- 결정 F의 `check_claim()` seam이 **agreement model**로 실현 (`app/rarr/agreement.py`).
+- 결정 H 20초 상한 유지. 단순모드 2~4초 목표는 순수 RARR 비용으로 **실측 후 재설정**(eval 이슈).
+- **안전망**: 파이프라인 타임아웃/에러 시 순수 Gemini 초안 + `[미검증]` 배너로 degrade(서비스 유지 우선, 결정 F 폴백 철학과 동일).
+- 재인제스트/스키마/임베딩/UI 계약 변경 없음. 검색 스택(`_retrieve_*`/rerank/graph)은 research 근거공급으로 호출 지점만 이동. 출력 계약(`ChatResponse` sources/warnings)·Chainlit 인용카드(결정 J/K) 유지.
+- 파이프라인 흐름·모듈맵 상세는 `docs/design.md` RARR 섹션 참조.
+
+---
+
+## N. RARR 단계별 역할 모델 라우팅
+
+**결정**: `get_llm_provider(role)` 역할 기반 라우팅 도입.
+
+| 역할 | 파이프라인 단계 | provider:model |
+|---|---|---|
+| `draft` | 1 초안 생성 | gemini : gemini-2.5-flash |
+| `edit` | 5 최소 수정 | gemini : gemini-2.5-flash |
+| `reason` | 7 3층 법리 검토 | gemini : gemini-2.5-flash |
+| `aux` | 2 주장분해 · 3b CQGen · 4 agreement | ollama(cloud) : glm-5.2 |
+
+**왜**: 사용자에게 보이는 산문(초안·edit·법리)은 만족도 검증된 Gemini, 내부 기계 판정(분해·질문생성·일치판정)은 빠르고 싼 glm-5.2로. aux는 주장·질문 단위 다수 병렬 호출이라 비용·지연이 가장 크게 누적 → 저가 모델로 분리해야 RARR 예산이 맞는다. 결정 L의 `make_llm_provider(provider=, model=)`가 이미 provider/model override를 지원하므로, role→(provider,model) 맵 + per-role 캐시(`get_llm_provider(role)`)만 추가하면 추상화를 깨지 않는다. glm-5.2 ollama 모델 태그는 Ollama Cloud 카탈로그에서 정확 명칭 확인 후 config에 고정. 역할별 모델은 config로 노출 — 실측 후 1·5·7을 상위 모델로 올릴 여지 유지.
