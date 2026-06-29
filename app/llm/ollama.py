@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 
 import httpx
 
@@ -9,11 +9,19 @@ from app.llm.base import Message
 
 
 class OllamaProvider:
-    def __init__(self, base_url: str, model: str, api_key: str = "", default_timeout: float = 120.0) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        model: str,
+        api_key: str = "",
+        default_timeout: float = 120.0,
+        on_request: Callable[[dict], None] | None = None,
+    ) -> None:
         self._base_url = base_url
         self._model = model
         self._api_key = api_key
         self._default_timeout = default_timeout
+        self._on_request = on_request
 
     def _headers(self) -> dict[str, str]:
         if self._api_key:
@@ -26,6 +34,17 @@ class OllamaProvider:
             built.append({"role": "system", "content": system})
         built.extend(messages)
         return built
+
+    def _fire_hook(self, payload: dict) -> None:
+        if self._on_request:
+            headers = self._headers()
+            # API 키는 마스킹
+            redacted = {k: "***" if k.lower() in ("authorization",) else v for k, v in headers.items()}
+            self._on_request({
+                "transport": f"POST {self._base_url}/api/chat",
+                "headers": redacted,
+                "body": payload,
+            })
 
     async def chat(
         self,
@@ -42,6 +61,8 @@ class OllamaProvider:
         }
         if json_mode:
             payload["format"] = "json"
+
+        self._fire_hook(payload)
 
         async with httpx.AsyncClient(timeout=timeout or self._default_timeout) as client:
             resp = await client.post(
@@ -64,6 +85,9 @@ class OllamaProvider:
             "messages": self._build_messages(messages, system),
             "stream": True,
         }
+
+        self._fire_hook(payload)
+
         async with httpx.AsyncClient(timeout=timeout or self._default_timeout) as client:
             async with client.stream(
                 "POST",

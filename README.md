@@ -21,6 +21,20 @@ db/           PostgreSQL(pgvector) / Neo4j 커넥션
 docs/         설계 문서
 ```
 
+## 개발 도구
+
+```bash
+# LLM API 테스트 (대화형 — 매 턴 실제 요청 페이로드 출력)
+python -m scripts.llm_test
+
+# 1회 실행
+python -m scripts.llm_test "소득세법 제14조 요지는?"
+
+# provider/model 오버라이드
+python -m scripts.llm_test --provider gemini --model gemini-2.5-pro
+python -m scripts.llm_test --provider ollama --model qwen2.5:32b
+```
+
 ## 문서
 
 - [아키텍처](docs/architecture.md)
