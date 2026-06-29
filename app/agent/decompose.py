@@ -5,9 +5,7 @@ import logging
 from dataclasses import dataclass
 from typing import Literal
 
-import httpx
-
-from app.config import get_settings
+from app.llm import get_llm_provider
 
 logger = logging.getLogger(__name__)
 
@@ -35,24 +33,15 @@ async def decompose(query: str) -> list[SubQuery]:
 
     LLM 호출 실패 또는 JSON 파싱 오류 시 전체 쿼리를 단일 hybrid 하위질의로 반환.
     """
-    settings = get_settings()
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(
-                f"{settings.ollama_cloud_base_url}/api/chat",
-                headers={"Authorization": f"Bearer {settings.ollama_api_key}"} if settings.ollama_api_key else {},
-                json={
-                    "model": settings.llm_model,
-                    "messages": [
-                        {"role": "system", "content": _DECOMPOSE_SYSTEM},
-                        {"role": "user", "content": f"다음 질의를 분해하십시오: {query}"},
-                    ],
-                    "stream": False,
-                },
-            )
-            resp.raise_for_status()
-        raw = resp.json()["message"]["content"].strip()
-        items = json.loads(raw)
+        provider = get_llm_provider()
+        raw = await provider.chat(
+            [{"role": "user", "content": f"다음 질의를 분해하십시오: {query}"}],
+            system=_DECOMPOSE_SYSTEM,
+            json_mode=True,
+            timeout=10.0,
+        )
+        items = json.loads(raw.strip())
         subqueries = [
             SubQuery(
                 text=item["text"],

@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import httpx
-
-from app.config import get_settings
+from app.llm import get_llm_provider
 from app.retrieval.embedder import embed_query
 
 _HYDE_SYSTEM = (
@@ -17,23 +15,14 @@ async def hyde_embedding(query: str) -> list[float]:
 
     LLM 호출 실패 시 쿼리 직접 임베딩으로 폴백.
     """
-    settings = get_settings()
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(
-                f"{settings.ollama_cloud_base_url}/api/chat",
-                headers={"Authorization": f"Bearer {settings.ollama_api_key}"} if settings.ollama_api_key else {},
-                json={
-                    "model": settings.llm_model,
-                    "messages": [
-                        {"role": "system", "content": _HYDE_SYSTEM},
-                        {"role": "user", "content": query},
-                    ],
-                    "stream": False,
-                },
-            )
-            resp.raise_for_status()
-        hypothetical = resp.json()["message"]["content"].strip()
+        provider = get_llm_provider()
+        hypothetical = await provider.chat(
+            [{"role": "user", "content": query}],
+            system=_HYDE_SYSTEM,
+            timeout=10.0,
+        )
+        hypothetical = hypothetical.strip() or query
     except Exception:
         hypothetical = query
     return await embed_query(hypothetical)

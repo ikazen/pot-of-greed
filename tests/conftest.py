@@ -18,6 +18,9 @@ _TEST_ENV = {
     "JWT_SECRET": "test-secret-key",
     "AUTH_USERS": "testuser:$2b$12$FAKEHASHFORTESTINGwwwwuO",
     "LAW_API_OC": "test-oc",
+    # 테스트는 ollama provider 고정 — respx로 /api/chat URL 직접 모킹하는 기존 테스트 호환
+    "LLM_PROVIDER": "ollama",
+    "GEMINI_API_KEY": "",
 }
 
 
@@ -26,9 +29,12 @@ def patch_env(monkeypatch):
     for k, v in _TEST_ENV.items():
         monkeypatch.setenv(k, v)
     from app.config import get_settings
+    from app.llm import get_llm_provider
     get_settings.cache_clear()
+    get_llm_provider.cache_clear()
     yield
     get_settings.cache_clear()
+    get_llm_provider.cache_clear()
 
 
 # ---------------------------------------------------------------------------

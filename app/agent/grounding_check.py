@@ -4,9 +4,7 @@ import json
 import logging
 from dataclasses import dataclass, field
 
-import httpx
-
-from app.config import get_settings
+from app.llm import get_llm_provider
 from app.retrieval.vector_search import Chunk
 
 logger = logging.getLogger(__name__)
@@ -32,29 +30,20 @@ async def check_answer(answer: str, sources: list[Chunk]) -> GroundingResult:
 
     LLM 호출 실패 시 grounded=True 폴백 (게이트 비활성화보다 서비스 유지 우선).
     """
-    settings = get_settings()
     context_preview = "\n".join(
         f"[{c.chunk_id}] {c.text[:300]}" for c in sources[:8]
     )
     user_msg = f"답변:\n{answer}\n\n검색 근거:\n{context_preview}"
 
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(
-                f"{settings.ollama_cloud_base_url}/api/chat",
-                headers={"Authorization": f"Bearer {settings.ollama_api_key}"} if settings.ollama_api_key else {},
-                json={
-                    "model": settings.llm_model,
-                    "messages": [
-                        {"role": "system", "content": _GROUNDING_SYSTEM},
-                        {"role": "user", "content": user_msg},
-                    ],
-                    "stream": False,
-                },
-            )
-            resp.raise_for_status()
-        raw = resp.json()["message"]["content"].strip()
-        data = json.loads(raw)
+        provider = get_llm_provider()
+        raw = await provider.chat(
+            [{"role": "user", "content": user_msg}],
+            system=_GROUNDING_SYSTEM,
+            json_mode=True,
+            timeout=10.0,
+        )
+        data = json.loads(raw.strip())
         return GroundingResult(
             grounded=bool(data.get("grounded", True)),
             issues=list(data.get("issues", [])),

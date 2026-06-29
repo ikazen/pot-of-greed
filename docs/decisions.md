@@ -85,3 +85,11 @@
 **결정**: 계층 = 조문 한정. 검색 child = 항/호, 컨텍스트 parent = 조. 계층 표현은 pgvector `parent_chunk_id` fetch만 사용(그래프에 계층 엣지 없음). 판례는 계층 미적용.
 
 **왜**: 항/호로 검색해야 임베딩 희석 없이 정밀 매칭되고, 조 전체를 parent로 끌어와야 리랭커·LLM이 세법 문맥을 오독 없이 본다(small-to-big). 계층을 그래프에 넣으면 Neo4j가 관계 탐색과 계층 탐색 두 역할을 지게 되므로, 단순 fetch로 충분한 계층은 PG 한 컬럼(`parent_chunk_id`)에 두고 그래프(G)는 인용/준용 관계에만 집중시킨다. 상세는 design.md §3.3.
+
+---
+
+## L. LLM Provider 추상화
+
+**결정**: `app/llm/LLMProvider` Protocol로 채팅 LLM 호출 추상화. 기본 provider = Gemini(`gemini-2.5-flash`). 교체는 `LLM_PROVIDER` 환경변수 한 줄로 가능(`"gemini"` | `"ollama"`).
+
+**왜**: 기존 코드는 동일한 Ollama Cloud httpx 패턴이 7개 호출 지점에 중복. provider 교체 시 7곳 수정이 필요했음. 추상화 후 `get_llm_provider()` 팩토리 하나로 수렴 — 신규 provider 추가도 단일 파일로 격리 가능. Gemini SDK(`google-genai`)를 선택한 이유: REST 스펙 변동·SSE 스트리밍 파싱의 견고함. 임베딩/리랭커는 범위 밖 — pgvector 벡터공간이 기수집 코퍼스와 묶여 있어 교체 시 전체 재인제스트 필요(결정 C와 연동).

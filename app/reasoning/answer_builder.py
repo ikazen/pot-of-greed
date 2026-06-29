@@ -3,8 +3,6 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-import httpx
-
 from app.retrieval.vector_search import Chunk
 
 logger = logging.getLogger(__name__)
@@ -160,9 +158,6 @@ async def legal_reasoning_layer(
     if not warnings:
         return None
 
-    from app.config import get_settings
-    settings = get_settings()
-
     validity_facts = "\n".join(
         f"- {w.ref}: {w.message}" for w in warnings
     )
@@ -178,21 +173,14 @@ async def legal_reasoning_layer(
     )
 
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(
-                f"{settings.ollama_cloud_base_url}/api/chat",
-                headers={"Authorization": f"Bearer {settings.ollama_api_key}"} if settings.ollama_api_key else {},
-                json={
-                    "model": settings.llm_model,
-                    "messages": [
-                        {"role": "system", "content": _LEGAL_REASONING_SYSTEM},
-                        {"role": "user", "content": user_msg},
-                    ],
-                    "stream": False,
-                },
-            )
-            resp.raise_for_status()
-        return resp.json()["message"]["content"].strip()
+        from app.llm import get_llm_provider
+        provider = get_llm_provider()
+        result = await provider.chat(
+            [{"role": "user", "content": user_msg}],
+            system=_LEGAL_REASONING_SYSTEM,
+            timeout=10.0,
+        )
+        return result.strip() or None
     except Exception:
         logger.debug("legal_reasoning_layer failed", exc_info=True)
         return None

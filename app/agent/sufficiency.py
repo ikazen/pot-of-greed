@@ -6,9 +6,8 @@ import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
-import httpx
-
 from app.config import get_settings
+from app.llm import get_llm_provider
 from app.retrieval.vector_search import Chunk
 
 logger = logging.getLogger(__name__)
@@ -32,33 +31,24 @@ _SUFFICIENCY_SYSTEM = (
 
 
 async def evaluate(query: str, chunks: list[Chunk]) -> SufficiencyResult:
-    """현재 검색 결과로 질의를 답변하기에 충분한지 Ollama Cloud로 판단.
+    """현재 검색 결과로 질의를 답변하기에 충분한지 LLM으로 판단.
 
     파싱 실패 또는 LLM 오류 시 sufficient=True로 폴백 (루프 종료).
     """
-    settings = get_settings()
     context_preview = "\n".join(
         f"[{c.chunk_id}] {c.text[:200]}" for c in chunks[:5]
     )
     user_msg = f"질의: {query}\n\n검색 결과:\n{context_preview}"
 
     try:
-        async with httpx.AsyncClient(timeout=8.0) as client:
-            resp = await client.post(
-                f"{settings.ollama_cloud_base_url}/api/chat",
-                headers={"Authorization": f"Bearer {settings.ollama_api_key}"} if settings.ollama_api_key else {},
-                json={
-                    "model": settings.llm_model,
-                    "messages": [
-                        {"role": "system", "content": _SUFFICIENCY_SYSTEM},
-                        {"role": "user", "content": user_msg},
-                    ],
-                    "stream": False,
-                },
-            )
-            resp.raise_for_status()
-        raw = resp.json()["message"]["content"].strip()
-        data = json.loads(raw)
+        provider = get_llm_provider()
+        raw = await provider.chat(
+            [{"role": "user", "content": user_msg}],
+            system=_SUFFICIENCY_SYSTEM,
+            json_mode=True,
+            timeout=8.0,
+        )
+        data = json.loads(raw.strip())
         return SufficiencyResult(
             sufficient=bool(data.get("sufficient", True)),
             rewritten_query=data.get("rewritten_query"),

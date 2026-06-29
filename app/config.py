@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     # databases
     pg_dsn: str
@@ -14,15 +14,20 @@ class Settings(BaseSettings):
     # ollama — mac-server (embedding + reranker)
     ollama_base_url: str
 
-    # ollama cloud — llm inference
-    ollama_cloud_base_url: str
+    # ollama cloud — llm inference (llm_provider=ollama 시 사용)
+    ollama_cloud_base_url: str = ""
     ollama_api_key: str = ""
+
+    # llm provider
+    llm_provider: str = "gemini"  # "gemini" | "ollama"
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-2.5-flash"
 
     # models
     embedding_model: str = "qwen3-embedding:8b"
     embedding_dim: int = 1024
     reranker_model: str = "bge-reranker-v2-m3"
-    llm_model: str = "qwen2.5:32b"
+    llm_model: str = "qwen2.5:32b"  # ollama provider 전용
 
     # retrieval
     retrieve_top_k: int = 30
