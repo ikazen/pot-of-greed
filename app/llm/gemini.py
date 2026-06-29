@@ -42,11 +42,12 @@ class GeminiProvider:
             kwargs["system_instruction"] = system
         if json_mode:
             kwargs["response_mime_type"] = "application/json"
+        # HttpOptions.timeout 단위는 ms
         http_opts: dict = {}
         if timeout is not None:
-            http_opts["timeout"] = timeout
+            http_opts["timeout"] = int(timeout * 1000)
         elif self._default_timeout:
-            http_opts["timeout"] = self._default_timeout
+            http_opts["timeout"] = int(self._default_timeout * 1000)
         if http_opts:
             kwargs["http_options"] = t.HttpOptions(**http_opts)
         return t.GenerateContentConfig(**kwargs)
