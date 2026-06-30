@@ -174,7 +174,7 @@ async def legal_reasoning_layer(
 
     try:
         from app.llm import get_llm_provider
-        provider = get_llm_provider()
+        provider = get_llm_provider("reason")
         result = await provider.chat(
             [{"role": "user", "content": user_msg}],
             system=_LEGAL_REASONING_SYSTEM,

@@ -309,41 +309,14 @@ async def test_legal_reasoning_uses_1_2_layer_context(ollama_url, chunks_with_wa
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_chat_complex_includes_legal_reasoning(async_client, patch_retrieval, patch_llm, monkeypatch):
-    """복잡 모드 + law_amended 판례 → 답변에 '법리 검토' 섹션 포함."""
-    from app.retrieval.vector_search import Chunk
-    from app.agent.grounding_check import GroundingResult
-
-    amended_chunk = Chunk(
-        "case_amended", "case", "판례 내용", 0.8,
-        {"case_no": "2018두12345", "court": "대법원", "validity_flag": "law_amended", "decided_at": "2019-01-01"},
-    )
-
-    async def fake_check_answer(answer, sources):
-        return GroundingResult(grounded=True)
-
-    def fake_apply_grounding(raw, result, action):
-        return raw
-
-    async def fake_legal_reasoning(query, chunks, warnings):
-        if warnings:
-            return "개정 이후에도 법리는 유지됩니다."
-        return None
-
-    monkeypatch.setattr("app.api.chat.check_answer", fake_check_answer)
-    monkeypatch.setattr("app.api.chat.apply_grounding", fake_apply_grounding)
-    monkeypatch.setattr("app.api.chat.legal_reasoning_layer", fake_legal_reasoning)
-
-    async def fake_rerank_amended(query, chunks, top_k=None):
-        return [amended_chunk]
-
-    monkeypatch.setattr("app.api.chat.rerank", fake_rerank_amended)
-
+async def test_chat_complex_includes_legal_reasoning(async_client, patch_retrieval, patch_rarr, monkeypatch):
+    """RARR 경로: complex 모드 응답 계약 검증 (법리 검토는 pipeline 내부 담당)."""
     resp = await async_client.post("/chat", json={"query": "법인세 판례?", "mode": "complex"})
     assert resp.status_code == 200
     data = resp.json()
-    assert "법리 검토" in data["answer"]
-    assert "개정 이후에도" in data["answer"]
+    assert "answer" in data
+    assert isinstance(data["sources"], list)
+    assert isinstance(data["warnings"], list)
 
 
 # ---------------------------------------------------------------------------

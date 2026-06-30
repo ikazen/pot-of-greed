@@ -37,6 +37,7 @@ def test_no_arg_equals_default(monkeypatch):
 
 def test_draft_role_returns_gemini(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "fake-key")
+    monkeypatch.setenv("RARR_DRAFT_PROVIDER", "gemini")
     monkeypatch.setenv("RARR_DRAFT_MODEL", "gemini-2.5-flash")
     _clear()
     provider = get_llm_provider("draft")
@@ -45,12 +46,14 @@ def test_draft_role_returns_gemini(monkeypatch):
 
 def test_edit_role_returns_gemini(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "fake-key")
+    monkeypatch.setenv("RARR_EDIT_PROVIDER", "gemini")
     _clear()
     assert isinstance(get_llm_provider("edit"), GeminiProvider)
 
 
 def test_reason_role_returns_gemini(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "fake-key")
+    monkeypatch.setenv("RARR_REASON_PROVIDER", "gemini")
     _clear()
     assert isinstance(get_llm_provider("reason"), GeminiProvider)
 

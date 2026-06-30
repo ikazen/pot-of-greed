@@ -19,13 +19,12 @@ from app.retrieval.graph_expand import expand_1hop, expand_2hop, filter_by_trans
 from app.retrieval.context_expand import expand_to_parents
 from app.retrieval.hyde import hyde_embedding
 from app.retrieval.vector_search import Chunk
-from app.reasoning.llm_client import simple_inference, complex_inference, stream_simple_inference
-from app.reasoning.answer_builder import build_answer, legal_reasoning_layer
 from app.router.mode_classifier import classify, should_promote
 from app.agent.decompose import decompose
 from app.agent.tool_router import route
 from app.agent.sufficiency import sufficiency_loop
 from app.agent.grounding_check import check_answer, apply_grounding
+from app.rarr.pipeline import run_rarr
 
 router = APIRouter(tags=["chat"])
 
@@ -51,28 +50,18 @@ async def chat(
     settings = get_settings()
     mode = classify(req.query, req.mode)
 
+    # RARR 강도 노브: simple=RARR-lite, complex=full RARR (결정 M)
     simple_chunks = await _retrieve_simple(req.query, settings)
     top_score = simple_chunks[0].score if simple_chunks else 0.0
+    if should_promote(top_score, settings.fallback_score_threshold):
+        mode = "complex"
 
-    if mode == "complex" or should_promote(top_score, settings.fallback_score_threshold):
-        final_chunks = await _retrieve_complex(req.query, settings, simple_chunks)
-        raw_answer = await complex_inference(req.query, final_chunks)
-        grounding = await check_answer(raw_answer, final_chunks)
-        raw_answer = apply_grounding(raw_answer, grounding, settings.grounding_action)
-        answer = build_answer(raw_answer, final_chunks, limit=settings.source_top_k)
-        # 3층 법리 판단 — warnings(1·2층 사실)를 컨텍스트로 제공
-        reasoning = await legal_reasoning_layer(req.query, final_chunks, answer.warnings)
-        if reasoning:
-            answer.answer += f"\n\n## 법리 검토\n{reasoning}"
-    else:
-        final_chunks = simple_chunks
-        raw_answer = await simple_inference(req.query, final_chunks)
-        answer = build_answer(raw_answer, final_chunks, limit=settings.source_top_k)
+    result = await run_rarr(req.query, mode, settings)
     elapsed = int((time.monotonic() - t0) * 1000)
     return ChatResponse(
-        answer=answer.answer,
-        sources=[vars(s) for s in answer.sources],
-        warnings=[vars(w) for w in answer.warnings],
+        answer=result.answer,
+        sources=[vars(s) for s in result.sources],
+        warnings=[vars(w) for w in result.warnings],
         elapsed_ms=elapsed,
     )
 
@@ -84,25 +73,26 @@ async def chat_stream(
 ) -> StreamingResponse:
     settings = get_settings()
     mode = classify(req.query, req.mode)
+
     simple_chunks = await _retrieve_simple(req.query, settings)
     top_score = simple_chunks[0].score if simple_chunks else 0.0
-
-    if mode == "complex" or should_promote(top_score, settings.fallback_score_threshold):
-        final_chunks = await _retrieve_complex(req.query, settings, simple_chunks)
-    else:
-        final_chunks = simple_chunks
+    if should_promote(top_score, settings.fallback_score_threshold):
+        mode = "complex"
 
     async def _event_stream():
-        collected: list[str] = []
-        async for token in stream_simple_inference(req.query, final_chunks):
-            collected.append(token)
-            yield f"data: {json.dumps({'token': token})}\n\n"
+        yield f"data: {json.dumps({'status': '검토 중'})}\n\n"
 
-        raw_answer = "".join(collected)
-        answer = build_answer(raw_answer, final_chunks, limit=settings.source_top_k)
+        result = await run_rarr(req.query, mode, settings)
+
+        # 최종 답변 청크 단위 스트리밍
+        chunk_size = 20
+        answer = result.answer
+        for i in range(0, len(answer), chunk_size):
+            yield f"data: {json.dumps({'token': answer[i:i + chunk_size]})}\n\n"
+
         tail = {
-            "sources": [vars(s) for s in answer.sources],
-            "warnings": [vars(w) for w in answer.warnings],
+            "sources": [vars(s) for s in result.sources],
+            "warnings": [vars(w) for w in result.warnings],
         }
         yield f"data: {json.dumps(tail)}\n\n"
         yield "data: [DONE]\n\n"

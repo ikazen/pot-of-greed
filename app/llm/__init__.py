@@ -35,9 +35,9 @@ def _build_provider(
 def _role_provider_model(settings, role: str) -> tuple[str, str] | None:
     """role → (provider, model). 알 수 없는 role이면 None."""
     return {
-        "draft": ("gemini", settings.rarr_draft_model),
-        "edit": ("gemini", settings.rarr_edit_model),
-        "reason": ("gemini", settings.rarr_reason_model),
+        "draft": (settings.rarr_draft_provider, settings.rarr_draft_model),
+        "edit": (settings.rarr_edit_provider, settings.rarr_edit_model),
+        "reason": (settings.rarr_reason_provider, settings.rarr_reason_model),
         "aux": (settings.rarr_aux_provider, settings.rarr_aux_model),
     }.get(role)
 
