@@ -218,6 +218,42 @@ Fallback 승격: 단순 모드 검색 top 점수가 임계값 미달이거나
 
 공통 핵심(ROI 높아 단순 모드에도 유지): **하이브리드 검색 + RRF + 경량 리랭킹**.
 
+### 5.4 RARR 파이프라인 (결정 M)
+
+RAG 폐기 후 현재 답변 경로:
+
+```
+1 DRAFT        Gemini 자유 초안 (검색 없음)
+2 DECOMPOSE    초안 → 원자 주장 목록 (glm-5.2, decontextualized)
+3a CITE CHECK  조문/판례번호 tsvector 존재검증 (결정론, LLM 없음)
+3b RESEARCH    주장별 RAG 검색 (simple=단일검색, complex=CQGen+HyDE+2hop)
+4 AGREEMENT    (주장, 근거) 일치 판정 (glm-5.2)
+5 EDIT         불일치/할루시네이션 주장 최소 수정 (Gemini)
+6 REASSEMBLE   수정 주장 재결합 → 최종 답변
+7 ATTRIBUTION  주장→근거 매핑, Source/Warning 조립 (결정론)
+  (complex) 3층 법리 검토: legal_reasoning_layer (Gemini)
+  (fallback) 파이프라인 실패 시 순수 Gemini 초안 + [미검증] 배너
+```
+
+튜닝 노브 (`app/config.py`): `RARR_MAX_CLAIMS` (주장 수 cap), `RARR_QUESTIONS_PER_CLAIM` (CQGen 질문 수 cap). 기본 0=무제한.
+
+### 5.5 eval 메트릭 & 하니스
+
+`app/rarr/metrics.py`: `compute_metrics(reports) -> RarrMetrics`
+
+| 메트릭 | 정의 |
+|---|---|
+| attribution_score | evidence 부착된 주장 / 전체 주장 |
+| preservation_score | 주장별 draft↔revised difflib 유사도 평균 |
+| n_hallucinated | 코퍼스에 없는 인용이 있는 주장 수 |
+| hallucination_correction_rate | 그중 edit이 정정한 비율 |
+
+하니스 실행(인프라 가동 시):
+```bash
+python -m scripts.rarr_eval --mode both --report
+# 결과: eval/results/<ts>.md
+```
+
 ---
 
 ## 6. 권장 기술 스택
