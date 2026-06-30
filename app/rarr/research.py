@@ -36,6 +36,8 @@ async def _research_complex(claim: Claim, settings, deadline: float) -> list[Chu
     from app.rarr.query_gen import generate_questions
 
     questions = await generate_questions(claim)
+    if settings.rarr_questions_per_claim:
+        questions = questions[:settings.rarr_questions_per_claim]
 
     async def _search_one(q: str) -> list[Chunk]:
         if time.monotonic() > deadline:

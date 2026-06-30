@@ -123,6 +123,8 @@ async def run_rarr(query: str, mode: str, settings) -> RarrResult:
             raise TimeoutError("draft exceeded deadline")
 
         claims = await decompose_claims(draft_text)
+        if settings.rarr_max_claims:
+            claims = claims[:settings.rarr_max_claims]
 
         reports = await asyncio.gather(
             *[_process_claim(c, mode, settings, deadline) for c in claims]
