@@ -79,3 +79,49 @@ async def test_research_claim_complex_calls_complex_path(monkeypatch):
     result = await research_claim(claim, "complex", object(), deadline=time.monotonic() + 10)
     assert called
     assert len(result) == 2
+
+
+@pytest.mark.asyncio
+async def test_research_complex_questions_per_claim_cap(monkeypatch):
+    """rarr_questions_per_claim=2이면 질문 5개 생성해도 검색이 2번만 호출된다."""
+    import app.rarr.research as research_mod
+    from app.rarr.types import Claim
+
+    search_calls = []
+
+    async def fake_generate_questions(claim):
+        return ["q1", "q2", "q3", "q4", "q5"]
+
+    async def fake_search_complex(query, settings):
+        search_calls.append(query)
+        return []
+
+    async def fake_rerank(query, chunks, top_k):
+        return []
+
+    async def fake_expand_2hop(ids):
+        return []
+
+    async def fake_expand_to_parents(chunks):
+        return []
+
+    # lazy imports inside _research_complex read from source module objects
+    import app.rarr.query_gen as qg_mod
+    import app.api.chat as chat_mod
+    from app.retrieval import reranker as reranker_mod
+    from app.retrieval import graph_expand as ge_mod
+    from app.retrieval import context_expand as ce_mod
+
+    monkeypatch.setattr(qg_mod, "generate_questions", fake_generate_questions)
+    monkeypatch.setattr(chat_mod, "_search_complex", fake_search_complex)
+    monkeypatch.setattr(reranker_mod, "rerank", fake_rerank)
+    monkeypatch.setattr(ge_mod, "expand_2hop", fake_expand_2hop)
+    monkeypatch.setattr(ce_mod, "expand_to_parents", fake_expand_to_parents)
+
+    class FakeSettings:
+        rarr_questions_per_claim = 2
+        rerank_top_k = 5
+
+    claim = Claim(text="복잡 질의")
+    await research_mod._research_complex(claim, FakeSettings(), deadline=time.monotonic() + 30)
+    assert len(search_calls) == 2

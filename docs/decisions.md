@@ -62,6 +62,8 @@
 
 **왜**: E(충분성 N=2~3), F1(1회 검증), HyDE를 모두 넣어도 20초 내 가능. 충분성 루프에서 시간 추적해 조기 탈출.
 
+**측정 예정**: `python -m scripts.rarr_eval --mode both --report` 실행 후 p50/p95 실측치로 재설정(BON-208).
+
 ---
 
 ## J. 웹 UI 툴 선택
@@ -104,7 +106,7 @@
 
 - 결정 A의 `classify()` seam은 폐기 대신 **RARR 강도 노브**로 재해석: simple=RARR-lite(CQGen 생략·단일검색·인용주장만 검증), complex=full RARR(CQGen+HyDE+2hop+충분성+3층).
 - 결정 F의 `check_claim()` seam이 **agreement model**로 실현 (`app/rarr/agreement.py`).
-- 결정 H 20초 상한 유지. 단순모드 2~4초 목표는 순수 RARR 비용으로 **실측 후 재설정**(eval 이슈).
+- 결정 H 20초 상한 유지. 단순모드 2~4초 목표는 순수 RARR 비용으로 **실측 후 재설정** — 하니스: `python -m scripts.rarr_eval --mode both --report` (BON-208).
 - **안전망**: 파이프라인 타임아웃/에러 시 순수 Gemini 초안 + `[미검증]` 배너로 degrade(서비스 유지 우선, 결정 F 폴백 철학과 동일).
 - 재인제스트/스키마/임베딩/UI 계약 변경 없음. 검색 스택(`_retrieve_*`/rerank/graph)은 research 근거공급으로 호출 지점만 이동. 출력 계약(`ChatResponse` sources/warnings)·Chainlit 인용카드(결정 J/K) 유지.
 - 파이프라인 흐름·모듈맵 상세는 `docs/design.md` RARR 섹션 참조.

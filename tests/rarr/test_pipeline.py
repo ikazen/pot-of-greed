@@ -123,3 +123,89 @@ async def test_run_rarr_builds_warnings_from_validity_flag(monkeypatch):
     from app.rarr.pipeline import run_rarr
     result = await run_rarr("질의", "simple", get_settings())
     assert any(w.validity_flag == "overruled" for w in result.warnings)
+
+
+@pytest.mark.asyncio
+async def test_run_rarr_tracks_hallucinated_refs(monkeypatch):
+    import app.rarr.pipeline as pipeline_mod
+
+    async def fake_draft(query):
+        return "초안"
+
+    async def fake_decompose_claims(text):
+        from app.rarr.types import Claim
+        return [Claim(text="소득세법 제999조 주장", cited_refs=["소득세법 제999조"])]
+
+    async def fake_research_claim(claim, mode, settings, deadline):
+        return [_make_evidence()]
+
+    async def fake_verify_citations(refs):
+        return {"소득세법 제999조": False}  # 할루시네이션
+
+    from app.rarr.agreement import AgreementResult
+
+    async def fake_check_agreement(claim, evidence):
+        return AgreementResult(agree=False, supporting=[])
+
+    async def fake_edit_claim(claim, agreement, evidence):
+        return "수정된 주장 [정정: 제999조 → 제89조]", evidence, ["[정정: 제999조 → 제89조]"]
+
+    monkeypatch.setattr(pipeline_mod, "draft", fake_draft)
+    monkeypatch.setattr(pipeline_mod, "decompose_claims", fake_decompose_claims)
+    monkeypatch.setattr(pipeline_mod, "research_claim", fake_research_claim)
+    monkeypatch.setattr(pipeline_mod, "verify_citations", fake_verify_citations)
+    monkeypatch.setattr(pipeline_mod, "check_agreement", fake_check_agreement)
+    monkeypatch.setattr(pipeline_mod, "edit_claim", fake_edit_claim)
+
+    from app.config import get_settings
+    from app.rarr.pipeline import run_rarr
+    result = await run_rarr("질의", "simple", get_settings())
+    report = result.attributions[0]
+    assert "소득세법 제999조" in report.hallucinated_refs
+    assert report.corrected is True
+
+
+@pytest.mark.asyncio
+async def test_run_rarr_max_claims_cap(monkeypatch):
+    """rarr_max_claims=2이면 decompose가 4개 반환해도 2개만 처리된다."""
+    import app.rarr.pipeline as pipeline_mod
+
+    async def fake_draft(query):
+        return "초안"
+
+    async def fake_decompose_claims(text):
+        return [Claim(text=f"주장{i}") for i in range(4)]
+
+    processed_claims = []
+
+    async def fake_research_claim(claim, mode, settings, deadline):
+        processed_claims.append(claim.text)
+        return [_make_evidence()]
+
+    async def fake_verify_citations(refs):
+        return {}
+
+    from app.rarr.agreement import AgreementResult
+
+    async def fake_check_agreement(claim, evidence):
+        return AgreementResult(agree=True, supporting=evidence)
+
+    async def fake_edit_claim(claim, agreement, evidence):
+        return claim.text, evidence, []
+
+    monkeypatch.setattr(pipeline_mod, "draft", fake_draft)
+    monkeypatch.setattr(pipeline_mod, "decompose_claims", fake_decompose_claims)
+    monkeypatch.setattr(pipeline_mod, "research_claim", fake_research_claim)
+    monkeypatch.setattr(pipeline_mod, "verify_citations", fake_verify_citations)
+    monkeypatch.setattr(pipeline_mod, "check_agreement", fake_check_agreement)
+    monkeypatch.setattr(pipeline_mod, "edit_claim", fake_edit_claim)
+
+    from app.config import get_settings
+    from app.rarr.pipeline import run_rarr
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "rarr_max_claims", 2)
+
+    result = await run_rarr("질의", "simple", settings)
+    assert len(result.attributions) == 2
+    assert len(processed_claims) == 2

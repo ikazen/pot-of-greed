@@ -1,0 +1,62 @@
+[
+  {
+    "query": "1세대 1주택 비과세 요건에서 보유기간 2년이 적용되지 않는 경우는 무엇인가요?",
+    "mode": "simple",
+    "tag": "citation"
+  },
+  {
+    "query": "소득세법 제89조에 따른 양도소득세 비과세 요건을 설명해주세요.",
+    "mode": "simple",
+    "tag": "citation"
+  },
+  {
+    "query": "법인세법 제18조의3에 따른 수입배당금 익금불산입 한도는 어떻게 계산하나요?",
+    "mode": "simple",
+    "tag": "citation"
+  },
+  {
+    "query": "부가가치세 면세 사업자의 의제매입세액 공제율은 소득세법 제14조 제3항에 따라 얼마인가요?",
+    "mode": "simple",
+    "tag": "hallucination"
+  },
+  {
+    "query": "종합부동산세법 제99조의2에 따른 1주택자 세율 특례는 무엇인가요?",
+    "mode": "simple",
+    "tag": "hallucination"
+  },
+  {
+    "query": "국세기본법 제26조의5 제4항에 따른 사해행위 취소 시 제척기간은 몇 년인가요?",
+    "mode": "simple",
+    "tag": "hallucination"
+  },
+  {
+    "query": "개인사업자가 법인으로 전환할 때 세무상 주요 고려사항은 무엇인가요?",
+    "mode": "simple",
+    "tag": "general"
+  },
+  {
+    "query": "퇴직금을 IRP에 이체한 후 인출 시 세금은 어떻게 부과되나요?",
+    "mode": "simple",
+    "tag": "general"
+  },
+  {
+    "query": "부동산 임대업 법인의 토지 등 양도소득에 대한 추가 법인세 과세 요건을 판례와 조문을 근거로 상세히 설명해주세요.",
+    "mode": "complex",
+    "tag": "citation"
+  },
+  {
+    "query": "대법원 2018두12345 판례의 쟁점과 결론을 요약해주세요.",
+    "mode": "complex",
+    "tag": "hallucination"
+  },
+  {
+    "query": "연구개발비 세액공제 적용 시 중소기업과 중견기업의 공제율 차이를 법인세법 조문 기준으로 비교해주세요.",
+    "mode": "complex",
+    "tag": "citation"
+  },
+  {
+    "query": "가업상속공제 요건과 사후관리 의무를 상속세 및 증여세법에 근거해 설명하고, 위반 시 추징세액 계산 방법도 알려주세요.",
+    "mode": "complex",
+    "tag": "citation"
+  }
+]
