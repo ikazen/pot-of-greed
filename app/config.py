@@ -29,6 +29,13 @@ class Settings(BaseSettings):
     reranker_model: str = "bge-reranker-v2-m3"
     llm_model: str = "qwen2.5:32b"  # ollama provider 전용
 
+    # RARR 역할별 모델 (결정 N)
+    rarr_draft_model: str = "gemini-2.5-flash"
+    rarr_edit_model: str = "gemini-2.5-flash"
+    rarr_reason_model: str = "gemini-2.5-flash"
+    rarr_aux_provider: str = "ollama"
+    rarr_aux_model: str = "glm-5.2"
+
     # retrieval
     retrieve_top_k: int = 30
     rerank_top_k: int = 5
