@@ -96,12 +96,16 @@ async def _process_claim(
         agreement.agree = False
 
     revised_text, used_evidence, corrections = await edit_claim(claim, agreement, evidence)
+    hallucinated_refs = [ref for ref, exists in citation_map.items() if not exists]
+    corrected = bool(corrections) or (revised_text != claim.text and bool(hallucinated_refs))
     return AttributionReport(
         claim=claim,
         evidence=used_evidence,
         agree=agreement.agree,
         revised_text=revised_text,
         corrections=corrections,
+        hallucinated_refs=hallucinated_refs,
+        corrected=corrected,
     )
 
 

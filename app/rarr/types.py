@@ -25,3 +25,5 @@ class AttributionReport:
     agree: bool = True
     revised_text: str = ""
     corrections: list[str] = field(default_factory=list)
+    hallucinated_refs: list[str] = field(default_factory=list)
+    corrected: bool = False
