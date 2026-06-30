@@ -4,7 +4,7 @@
 
 ### POST /chat
 
-질의응답 진입점.
+질의응답 진입점. 전체 결과를 한 번에 반환.
 
 **인증**: `Authorization: Bearer <JWT>`
 
@@ -26,8 +26,8 @@
 {
   "answer": "...",
   "sources": [
-    {"type": "article", "ref": "법인세법 제52조", "chunk_id": "..."},
-    {"type": "case",    "ref": "2018두12345",     "chunk_id": "..."}
+    {"type": "article", "ref": "법인세법 제52조", "chunk_id": "...", "summary": "..."},
+    {"type": "case",    "ref": "2018두12345",     "chunk_id": "...", "summary": "..."}
   ],
   "warnings": [
     {
@@ -36,9 +36,37 @@
       "validity_flag": "law_amended",
       "message": "근거 조문(법인세법 제52조)이 2021년 개정됨. 현행법 적용 시 결론이 달라질 수 있음."
     }
-  ]
+  ],
+  "elapsed_ms": 1823
 }
 ```
+
+### POST /chat/stream
+
+스트리밍 버전. SSE(`text/event-stream`) 형식으로 순차 반환.
+
+**인증**: `Authorization: Bearer <JWT>` (요청 형식 동일)
+
+**이벤트 흐름**
+
+```
+data: {"status": "검토 중"}
+
+data: {"token": "법인세법 제"}
+data: {"token": "52조에 따르면..."}
+...
+
+data: {"sources": [...], "warnings": [...]}
+
+data: [DONE]
+```
+
+| 이벤트 | 설명 |
+|---|---|
+| `{"status": "검토 중"}` | RARR 파이프라인 시작 알림 |
+| `{"token": "..."}` | 최종 답변 20자 단위 토큰 |
+| `{"sources": [...], "warnings": [...]}` | 파이프라인 완료 후 출처·경고 (tail 프레임) |
+| `[DONE]` | 스트림 종료 |
 
 ## 데이터 모델
 
@@ -85,3 +113,12 @@
 ```
 
 `chunk_id`가 PostgreSQL ↔ Neo4j 공유 키.
+
+## warnings validity_flag 값
+
+| 값 | 의미 |
+|---|---|
+| `overruled` | 판례 폐기됨 |
+| `law_amended` | 근거 조문 개정됨 |
+| `uncertain` | 유효성 불확실 |
+| `correction` | RARR edit이 인용 번호를 정정함 (`[정정: 원본 → 수정]`) |
