@@ -32,10 +32,25 @@ def _build_provider(
     )
 
 
+def _role_provider_model(settings, role: str) -> tuple[str, str] | None:
+    """role → (provider, model). 알 수 없는 role이면 None."""
+    return {
+        "draft": (settings.rarr_draft_provider, settings.rarr_draft_model),
+        "edit": (settings.rarr_edit_provider, settings.rarr_edit_model),
+        "reason": (settings.rarr_reason_provider, settings.rarr_reason_model),
+        "aux": (settings.rarr_aux_provider, settings.rarr_aux_model),
+    }.get(role)
+
+
 @lru_cache
-def get_llm_provider() -> LLMProvider:
+def get_llm_provider(role: str = "default") -> LLMProvider:
     from app.config import get_settings
-    return _build_provider(get_settings())
+    settings = get_settings()
+    mapping = _role_provider_model(settings, role)
+    if mapping is not None:
+        provider, model = mapping
+        return _build_provider(settings, provider=provider, model=model)
+    return _build_provider(settings)
 
 
 def make_llm_provider(

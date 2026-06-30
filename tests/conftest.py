@@ -21,6 +21,10 @@ _TEST_ENV = {
     # 테스트는 ollama provider 고정 — respx로 /api/chat URL 직접 모킹하는 기존 테스트 호환
     "LLM_PROVIDER": "ollama",
     "GEMINI_API_KEY": "",
+    # RARR 역할도 ollama로 통일 (respx mock 호환)
+    "RARR_DRAFT_PROVIDER": "ollama",
+    "RARR_EDIT_PROVIDER": "ollama",
+    "RARR_REASON_PROVIDER": "ollama",
 }
 
 
@@ -138,15 +142,11 @@ def patch_retrieval(monkeypatch, sample_chunks):
     def fake_apply_grounding(raw_answer, result, action):
         return raw_answer
 
-    async def fake_legal_reasoning_layer(query, chunks, warnings):
-        return None
-
     monkeypatch.setattr("app.api.chat.decompose", fake_decompose)
     monkeypatch.setattr("app.api.chat.route", fake_route)
     monkeypatch.setattr("app.api.chat.sufficiency_loop", fake_sufficiency_loop)
     monkeypatch.setattr("app.api.chat.check_answer", fake_check_answer)
     monkeypatch.setattr("app.api.chat.apply_grounding", fake_apply_grounding)
-    monkeypatch.setattr("app.api.chat.legal_reasoning_layer", fake_legal_reasoning_layer)
     return sample_chunks
 
 
@@ -202,15 +202,11 @@ def patch_low_score_retrieval(monkeypatch, low_score_chunks):
     def fake_apply_grounding(raw_answer, result, action):
         return raw_answer
 
-    async def fake_legal_reasoning_layer(query, chunks, warnings):
-        return None
-
     monkeypatch.setattr("app.api.chat.decompose", fake_decompose)
     monkeypatch.setattr("app.api.chat.route", fake_route)
     monkeypatch.setattr("app.api.chat.sufficiency_loop", fake_sufficiency_loop)
     monkeypatch.setattr("app.api.chat.check_answer", fake_check_answer)
     monkeypatch.setattr("app.api.chat.apply_grounding", fake_apply_grounding)
-    monkeypatch.setattr("app.api.chat.legal_reasoning_layer", fake_legal_reasoning_layer)
     return low_score_chunks
 
 
@@ -229,20 +225,24 @@ def patch_grounding(monkeypatch):
 
 
 @pytest.fixture
-def patch_llm(monkeypatch):
-    async def fake_simple_inference(query, chunks):
-        return "단순 모드 답변입니다."
+def patch_rarr(monkeypatch):
+    from app.rarr.pipeline import RarrResult
+    from app.reasoning.answer_builder import Source
 
-    async def fake_complex_inference(query, chunks, system_extra=""):
-        return "복잡 모드 답변입니다."
+    _SIMPLE_ANSWER = "단순 모드 RARR 답변입니다."
+    _COMPLEX_ANSWER = "복잡 모드 RARR 답변입니다."
+    _SAMPLE_SOURCE = Source(
+        type="article",
+        ref="소득세법 제14조",
+        chunk_id="art_income_14",
+        summary="과세표준의 계산...",
+    )
 
-    async def fake_stream(query, chunks):
-        for token in ["스트리밍 ", "답변입니다."]:
-            yield token
+    async def fake_run_rarr(query, mode, settings):
+        answer = _COMPLEX_ANSWER if mode == "complex" else _SIMPLE_ANSWER
+        return RarrResult(answer=answer, sources=[_SAMPLE_SOURCE], warnings=[], attributions=[])
 
-    monkeypatch.setattr("app.api.chat.simple_inference", fake_simple_inference)
-    monkeypatch.setattr("app.api.chat.complex_inference", fake_complex_inference)
-    monkeypatch.setattr("app.api.chat.stream_simple_inference", fake_stream)
+    monkeypatch.setattr("app.api.chat.run_rarr", fake_run_rarr)
 
 
 # ---------------------------------------------------------------------------

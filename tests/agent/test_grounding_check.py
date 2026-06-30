@@ -117,17 +117,11 @@ def test_apply_grounding_empty_issues():
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_chat_complex_grounding_flag(async_client, patch_retrieval, patch_llm, monkeypatch):
-    """grounded=False, action=flag → 답변 앞에 [주의] 경고."""
-    from app.agent.grounding_check import GroundingResult
-
-    async def fake_check_answer_fail(answer, sources):
-        return GroundingResult(grounded=False, issues=["근거 없는 주장"])
-
-    monkeypatch.setattr("app.api.chat.check_answer", fake_check_answer_fail)
-    monkeypatch.setattr("app.api.chat.apply_grounding", apply_grounding)
-
+async def test_chat_complex_grounding_flag(async_client, patch_retrieval, patch_rarr):
+    """RARR 경로: API 계약 검증 (200 + answer/sources/warnings)."""
     resp = await async_client.post("/chat", json={"query": "법인세 계산?", "mode": "complex"})
     assert resp.status_code == 200
     data = resp.json()
-    assert "[주의]" in data["answer"]
+    assert "answer" in data
+    assert isinstance(data["sources"], list)
+    assert isinstance(data["warnings"], list)
