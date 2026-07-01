@@ -7,7 +7,7 @@ from app.llm import get_llm_provider
 from app.rarr.types import Claim
 
 # 조문 번호: "XXX법 제N조" 형식
-_RE_ARTICLE = re.compile(r"[\w가-힣]+법\s*제\d+조(?:\s*제\d+항)?")
+_RE_ARTICLE = re.compile(r"(?P<law>[\w가-힣]+법)\s*(?P<article>제\d+조)(?:\s*제\d+항)?")
 # 판례 번호: 연도+사건부호+번호 (예: 2018두12345, 2021도1234)
 _RE_CASE = re.compile(r"\d{4}[가-힣]+\d+")
 
@@ -20,15 +20,31 @@ _DECOMPOSE_SYSTEM = (
 
 
 def _extract_refs(text: str) -> list[str]:
-    refs = _RE_ARTICLE.findall(text) + _RE_CASE.findall(text)
+    matches = list(_RE_ARTICLE.finditer(text)) + list(_RE_CASE.finditer(text))
     seen: set[str] = set()
     result: list[str] = []
-    for r in refs:
-        r = r.strip()
+    for m in matches:
+        r = m.group(0).strip()
         if r not in seen:
             seen.add(r)
             result.append(r)
     return result
+
+
+def parse_ref(ref: str) -> tuple[str, tuple[str, ...]] | None:
+    """ref 문자열 → 구조적 동등 매칭용 (kind, params).
+
+    ("article", (law_name, article_no)) | ("case", (case_no,)) | None(파싱 불가).
+    추출(_extract_refs)과 같은 정규식을 써서 divergence를 방지한다.
+    항(제N항)은 소비만 하고 존재 판정은 조 단위로 한다.
+    """
+    ref = ref.strip()
+    m = _RE_ARTICLE.match(ref)
+    if m:
+        return "article", (m.group("law"), m.group("article"))
+    if _RE_CASE.fullmatch(ref):
+        return "case", (ref,)
+    return None
 
 
 async def decompose_claims(draft_text: str) -> list[Claim]:
