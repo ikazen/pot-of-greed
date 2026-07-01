@@ -115,6 +115,13 @@
 - 재인제스트/스키마/임베딩/UI 계약 변경 없음. 검색 스택(`_retrieve_*`/rerank/graph)은 research 근거공급으로 호출 지점만 이동. 출력 계약(`ChatResponse` sources/warnings)·Chainlit 인용카드(결정 J/K) 유지.
 - 파이프라인 흐름·모듈맵 상세는 `docs/design.md` RARR 섹션 참조.
 
+**수정(2026-07-01, BON-216)**: edit(5단계)가 1-pass라 새로 심거나 못 지운 환각 인용이 무검증
+출고되는 구멍이 있었다(adversarial review C2/C3). `_process_claim`(`app/rarr/pipeline.py`)에
+edit 후 재검증을 추가 — 최종 텍스트에서 ref를 재추출해 `verify_citations`를 다시 돌리고,
+실패한 ref는 `[인용 삭제]`로 결정론적 치환 + `_build_outputs`가 `validity_flag="hallucination"`
+경고를 강제 생성(`AttributionReport.removed_refs` 신규 필드). edit가 `[정정:]` 마커를 안 붙여도
+안전망이 작동한다.
+
 ---
 
 ## N. RARR 단계별 역할 모델 라우팅

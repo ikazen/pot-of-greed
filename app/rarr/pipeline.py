@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 from app.rarr.agreement import check_agreement
 from app.rarr.citation import verify_citations
-from app.rarr.claims import decompose_claims
+from app.rarr.claims import _extract_refs, decompose_claims
 from app.rarr.draft import draft
 from app.rarr.edit import edit_claim
 from app.rarr.research import research_claim
@@ -76,6 +76,16 @@ def _build_outputs(
                     message=corr,
                 ))
 
+    # C3: 결정론적으로 제거된 미검증 ref → 경고 강제 (edit가 [정정:]을 안 붙여도 승격)
+    for r in reports:
+        for ref in r.removed_refs:
+            warnings.append(Warning(
+                chunk_id="",
+                ref=ref,
+                validity_flag="hallucination",
+                message=f"[주의] '{ref}'는 코퍼스에서 확인되지 않아 제거되었습니다.",
+            ))
+
     return sources[:limit], warnings
 
 
@@ -98,6 +108,20 @@ async def _process_claim(
     revised_text, used_evidence, corrections = await edit_claim(claim, agreement, evidence)
     hallucinated_refs = [ref for ref, exists in citation_map.items() if not exists]
     corrected = bool(corrections) or (revised_text != claim.text and bool(hallucinated_refs))
+
+    # C2: edit 결과의 ref 재검증. edit가 그대로면(agree 경로) 이미 검증된 citation_map 재사용해
+    # DB 재호출을 회피하고, 수정됐다면 edit LLM이 새로 심었거나 못 지운 환각까지 다시 잡는다.
+    if revised_text == claim.text:
+        revised_refs, revised_map = claim.cited_refs, citation_map
+    else:
+        revised_refs = _extract_refs(revised_text)
+        revised_map = await verify_citations(revised_refs)
+
+    # C3: 최종 텍스트에 남은 미검증 ref는 결정론적으로 제거 — LLM이 [정정:]을 안 붙여도 안전망 작동.
+    removed_refs = [ref for ref in revised_refs if not revised_map.get(ref, False)]
+    for ref in removed_refs:
+        revised_text = revised_text.replace(ref, "[인용 삭제]")
+
     return AttributionReport(
         claim=claim,
         evidence=used_evidence,
@@ -106,6 +130,7 @@ async def _process_claim(
         corrections=corrections,
         hallucinated_refs=hallucinated_refs,
         corrected=corrected,
+        removed_refs=removed_refs,
     )
 
 

@@ -27,3 +27,4 @@ class AttributionReport:
     corrections: list[str] = field(default_factory=list)
     hallucinated_refs: list[str] = field(default_factory=list)
     corrected: bool = False
+    removed_refs: list[str] = field(default_factory=list)
