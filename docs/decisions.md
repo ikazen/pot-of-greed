@@ -48,6 +48,8 @@
 
 **왜**: F2는 느리지만 정확. 환각 발생률 측정 후 강화 여부 결정. `check_claim()` seam을 미리 정의해 교체 가능하게.
 
+**수정(2026-07-01, BON-217)**: F2 실현체인 `check_agreement`(`app/rarr/agreement.py`)가 명제-근거 일치(LLM `agree`)만 보고 인용-근거 정합은 안 봐서, "실재하지만 무관한" 인용이 `agree=True`로 통과하는 구멍이 있었다(adversarial review C4). `claim.cited_refs ⊆ supporting`(C1의 `parse_ref` 정규화로 조 단위 비교) 불변식을 추가해 위반 시 `agree=False`로 강등, edit 경로에 회부.
+
 ---
 
 ## G. DB 구성
