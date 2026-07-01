@@ -14,6 +14,8 @@
 
 **왜**: 조문번호·판례번호 정확매칭이 핵심이고 tsvector로 충분. 자연어 키워드 재현율 부족 시 형태소 분석기(은전한닢)/ES 추후 도입 검토.
 
+**수정(2026-07-01, BON-215)**: "정확매칭이 충분하다"는 검색(retrieval)에는 유효하지만 인용 존재검증(RARR attribution)에는 부족했다 — tsvector는 토큰 AND 매칭이라 "법명은 오귀속, 번호만 실재"인 인용도 통과시키는 오탐이 있었다(adversarial review C1). `verify_citations`(`app/rarr/citation.py`)는 tsvector 대신 `law_name`+`article_no`/`case_no` 컬럼 동등성 질의로 전환. `keyword_search`(하이브리드 검색용)는 그대로 tsvector 유지 — 검색 재현율과 인용 존재검증은 다른 요구사항이라 결정을 분리한다.
+
 ---
 
 ## C. 임베딩 모델
