@@ -121,6 +121,7 @@ async def test_research_complex_questions_per_claim_cap(monkeypatch):
     class FakeSettings:
         rarr_questions_per_claim = 2
         rerank_top_k = 5
+        rarr_max_concurrency = 4
 
     claim = Claim(text="복잡 질의")
     await research_mod._research_complex(claim, FakeSettings(), deadline=time.monotonic() + 30)

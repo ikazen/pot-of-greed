@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 
 from app.llm import get_llm_provider
 from app.rarr.claims import parse_ref
-from app.rarr.types import Claim, Evidence
+from app.rarr.types import EVIDENCE_SNIPPET_CHARS, Claim, Evidence
 
 _AGREEMENT_SYSTEM = (
     "주어진 주장과 근거 문서를 보고 주장이 근거와 일치하는지 판단하세요. "
@@ -62,7 +62,7 @@ async def check_agreement(
         timeout = min(timeout, remaining)
 
     evidence_text = "\n".join(
-        f"[{e.chunk_id}] {e.ref}\n{e.text[:400]}" for e in evidence
+        f"[{e.chunk_id}] {e.ref}\n{e.text[:EVIDENCE_SNIPPET_CHARS]}" for e in evidence
     )
     user_msg = f"주장: {claim.text}\n\n근거:\n{evidence_text}"
 

@@ -423,3 +423,168 @@ async def test_run_rarr_no_hallucination_no_removal(monkeypatch):
     for report in result.attributions:
         assert report.removed_refs == []
     assert not any(w.validity_flag == "hallucination" for w in result.warnings)
+
+
+# ---------------------------------------------------------------------------
+# BON-222 — M1-M5 + LOW 품질 개선 묶음
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_process_claim_corrected_requires_hallucinated_ref_removed_from_final_text(monkeypatch):
+    """M2: 무관한 교정([정정:])만 있고 환각 ref가 최종 텍스트에 그대로 남으면 corrected=False.
+
+    이전 산식(bool(corrections) or ...)은 다른 부분 교정만 있어도 "그 환각이
+    정정됐다"고 오판해 hallucination_correction_rate를 부풀렸다.
+    """
+    import time
+    import app.rarr.pipeline as pipeline_mod
+    from app.rarr.pipeline import _process_claim
+    from app.rarr.agreement import AgreementResult
+
+    claim = Claim(text="소득세법 제999조 주장", cited_refs=["소득세법 제999조"])
+
+    async def fake_research_claim(c, mode, settings, deadline):
+        return [_make_evidence()]
+
+    verify_calls = []
+
+    async def fake_verify_citations(refs):
+        verify_calls.append(list(refs))
+        # 최초 호출(citation_map)은 미실재로, 재검증 호출은 (불일치하게) 실재로 답해
+        # C3 제거가 발동하지 않는 상황을 재현 — 그래도 M2 산식은 최종 텍스트에
+        # 남은 원래 환각 ref 문자열 자체를 직접 확인해야 한다.
+        if len(verify_calls) == 1:
+            return {ref: False for ref in refs}
+        return {ref: True for ref in refs}
+
+    async def fake_check_agreement(c, evidence, deadline=None):
+        return AgreementResult(agree=False, supporting=[])
+
+    async def fake_edit_claim(c, agreement, evidence, max_evidence=5, deadline=None):
+        return "소득세법 제999조 주장 [정정: 오타 수정]", evidence, ["[정정: 오타 수정]"]
+
+    monkeypatch.setattr(pipeline_mod, "research_claim", fake_research_claim)
+    monkeypatch.setattr(pipeline_mod, "verify_citations", fake_verify_citations)
+    monkeypatch.setattr(pipeline_mod, "check_agreement", fake_check_agreement)
+    monkeypatch.setattr(pipeline_mod, "edit_claim", fake_edit_claim)
+
+    from app.config import get_settings
+    deadline = time.monotonic() + 20
+    report = await _process_claim(claim, "simple", get_settings(), deadline)
+
+    assert "소득세법 제999조" in report.hallucinated_refs
+    assert "소득세법 제999조" in report.revised_text
+    assert report.corrected is False
+
+
+@pytest.mark.asyncio
+async def test_run_rarr_sources_sorted_by_score_descending(monkeypatch):
+    """M3: source 목록이 claim 처리 순서가 아니라 evidence score 내림차순으로 정렬된다."""
+    import app.rarr.pipeline as pipeline_mod
+
+    def _scored_evidence(chunk_id, score):
+        return Evidence(
+            chunk_id=chunk_id,
+            ref=f"소득세법 제{chunk_id}조",
+            text="내용",
+            score=score,
+            meta={"law_name": "소득세법", "article_no": f"제{chunk_id}조"},
+        )
+
+    async def fake_draft(query):
+        return "초안"
+
+    async def fake_decompose_claims(text):
+        return [Claim(text="주장1"), Claim(text="주장2")]
+
+    async def fake_research_claim(claim, mode, settings, deadline):
+        if claim.text == "주장1":
+            return [_scored_evidence("low", 0.3)]
+        return [_scored_evidence("high", 0.95)]
+
+    async def fake_verify_citations(refs):
+        return {}
+
+    from app.rarr.agreement import AgreementResult
+
+    async def fake_check_agreement(claim, evidence, deadline=None):
+        return AgreementResult(agree=True, supporting=evidence)
+
+    async def fake_edit_claim(claim, agreement, evidence, max_evidence=5, deadline=None):
+        return claim.text, evidence, []
+
+    monkeypatch.setattr(pipeline_mod, "draft", fake_draft)
+    monkeypatch.setattr(pipeline_mod, "decompose_claims", fake_decompose_claims)
+    monkeypatch.setattr(pipeline_mod, "research_claim", fake_research_claim)
+    monkeypatch.setattr(pipeline_mod, "verify_citations", fake_verify_citations)
+    monkeypatch.setattr(pipeline_mod, "check_agreement", fake_check_agreement)
+    monkeypatch.setattr(pipeline_mod, "edit_claim", fake_edit_claim)
+
+    from app.config import get_settings
+    from app.rarr.pipeline import run_rarr
+    result = await run_rarr("질의", "simple", get_settings())
+
+    assert [s.chunk_id for s in result.sources] == ["high", "low"]
+
+
+@pytest.mark.asyncio
+async def test_run_rarr_bounds_claim_concurrency(monkeypatch):
+    """M4: rarr_max_concurrency로 동시에 처리되는 claim 수가 제한된다."""
+    import asyncio
+    import app.rarr.pipeline as pipeline_mod
+    from app.rarr.types import AttributionReport
+
+    async def fake_draft(query):
+        return "초안"
+
+    async def fake_decompose_claims(text):
+        return [Claim(text=f"주장{i}") for i in range(6)]
+
+    current = 0
+    peak = 0
+
+    async def fake_process_claim(claim, mode, settings, deadline):
+        nonlocal current, peak
+        current += 1
+        peak = max(peak, current)
+        await asyncio.sleep(0.01)
+        current -= 1
+        return AttributionReport(claim=claim, revised_text=claim.text)
+
+    monkeypatch.setattr(pipeline_mod, "draft", fake_draft)
+    monkeypatch.setattr(pipeline_mod, "decompose_claims", fake_decompose_claims)
+    monkeypatch.setattr(pipeline_mod, "_process_claim", fake_process_claim)
+
+    from app.config import get_settings
+    from app.rarr.pipeline import run_rarr
+    settings = get_settings()
+    monkeypatch.setattr(settings, "rarr_max_concurrency", 2)
+
+    await run_rarr("질의", "simple", settings)
+    assert peak <= 2
+
+
+@pytest.mark.asyncio
+async def test_run_rarr_draft_called_once_on_pipeline_failure(monkeypatch):
+    """M5: draft 성공 후 후속 단계가 실패해도 draft를 두 번 호출하지 않고 결과를 재사용한다."""
+    import app.rarr.pipeline as pipeline_mod
+
+    draft_calls = []
+
+    async def fake_draft(query):
+        draft_calls.append(query)
+        return "초안 텍스트"
+
+    async def failing_decompose(text):
+        raise RuntimeError("decompose 실패")
+
+    monkeypatch.setattr(pipeline_mod, "draft", fake_draft)
+    monkeypatch.setattr(pipeline_mod, "decompose_claims", failing_decompose)
+
+    from app.config import get_settings
+    from app.rarr.pipeline import run_rarr
+    result = await run_rarr("질의", "simple", get_settings())
+
+    assert len(draft_calls) == 1
+    assert "초안 텍스트" in result.answer
+    assert "[미검증]" in result.answer

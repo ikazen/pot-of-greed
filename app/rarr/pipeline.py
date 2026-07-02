@@ -44,7 +44,13 @@ def _build_outputs(
     sources: list[Source] = []
     warnings: list[Warning] = []
 
-    all_evidence = [ev for r in reports for ev in r.evidence]
+    # M3: score 내림차순 정렬 후 dedup — 먼저 등장한(최고점) ref가 대표로 남게 해
+    # 최종 source 목록이 claim 처리 순서가 아니라 관련도순이 되게 한다.
+    all_evidence = sorted(
+        (ev for r in reports for ev in r.evidence),
+        key=lambda ev: ev.score,
+        reverse=True,
+    )
 
     for ev in all_evidence:
         if ev.ref in seen_refs:
@@ -109,7 +115,6 @@ async def _process_claim(
         claim, agreement, evidence, max_evidence=settings.rerank_top_k, deadline=deadline
     )
     hallucinated_refs = [ref for ref, exists in citation_map.items() if not exists]
-    corrected = bool(corrections) or (revised_text != claim.text and bool(hallucinated_refs))
 
     # C2: edit 결과의 ref 재검증. edit가 그대로면(agree 경로) 이미 검증된 citation_map 재사용해
     # DB 재호출을 회피하고, 수정됐다면 edit LLM이 새로 심었거나 못 지운 환각까지 다시 잡는다.
@@ -123,6 +128,13 @@ async def _process_claim(
     removed_refs = [ref for ref in revised_refs if not revised_map.get(ref, False)]
     for ref in removed_refs:
         revised_text = revised_text.replace(ref, "[인용 삭제]")
+
+    # M2: "무언가 정정됨"이 아니라 "원래 환각 ref가 최종 텍스트에서 실제로 사라졌는가"로 판정.
+    # 이전 산식(bool(corrections) or ...)은 무관한 다른 교정만 있어도 환각까지 고쳐진 것으로
+    # 오산해 hallucination_correction_rate를 부풀렸다.
+    corrected = bool(hallucinated_refs) and all(
+        ref not in revised_text for ref in hallucinated_refs
+    )
 
     return AttributionReport(
         claim=claim,
@@ -143,9 +155,20 @@ async def run_rarr(query: str, mode: str, settings) -> RarrResult:
     """
     deadline = time.monotonic() + settings.complex_mode_timeout_s
 
+    # M5: draft 실패는 그 자체로 답변 불가 상태이므로 별도 처리. 아래 파이프라인
+    # 단계 실패 시의 degrade 경로가 이 draft_text를 재사용해 draft를 두 번 호출하지 않는다.
     try:
         draft_text = await draft(query)
+    except Exception:
+        logger.warning("RARR draft 실패", exc_info=True)
+        return RarrResult(
+            answer="답변을 생성할 수 없습니다.\n\n[미검증] 답변 검증에 실패했습니다. 내용을 반드시 확인하세요.",
+            sources=[],
+            warnings=[],
+            attributions=[],
+        )
 
+    try:
         if time.monotonic() > deadline:
             raise TimeoutError("draft exceeded deadline")
 
@@ -154,8 +177,14 @@ async def run_rarr(query: str, mode: str, settings) -> RarrResult:
         verified_claims = claims[:cap] if cap else claims
         deferred_claims = claims[cap:] if cap else []
 
+        semaphore = asyncio.Semaphore(settings.rarr_max_concurrency)
+
+        async def _bounded_process(c: Claim) -> AttributionReport:
+            async with semaphore:
+                return await _process_claim(c, mode, settings, deadline)
+
         reports = await asyncio.gather(
-            *[_process_claim(c, mode, settings, deadline) for c in verified_claims]
+            *[_bounded_process(c) for c in verified_claims]
         )
 
         final_answer = " ".join(r.revised_text for r in reports)
@@ -203,10 +232,6 @@ async def run_rarr(query: str, mode: str, settings) -> RarrResult:
 
     except Exception:
         logger.warning("RARR pipeline failed — degrading to draft", exc_info=True)
-        try:
-            draft_text = await draft(query)
-        except Exception:
-            draft_text = "답변을 생성할 수 없습니다."
         return RarrResult(
             answer=draft_text + "\n\n[미검증] 답변 검증에 실패했습니다. 내용을 반드시 확인하세요.",
             sources=[],

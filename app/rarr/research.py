@@ -27,7 +27,7 @@ async def _research_simple(claim: Claim, settings) -> list[Chunk]:
 
 
 async def _research_complex(claim: Claim, settings, deadline: float) -> list[Chunk]:
-    from app.api.chat import _search_complex, _retrieve_complex
+    from app.api.chat import _search_complex
     from app.retrieval.reranker import rerank
     from app.retrieval.graph_expand import expand_2hop, filter_by_transaction_date
     from app.retrieval.context_expand import expand_to_parents
@@ -39,10 +39,15 @@ async def _research_complex(claim: Claim, settings, deadline: float) -> list[Chu
     if settings.rarr_questions_per_claim:
         questions = questions[:settings.rarr_questions_per_claim]
 
+    # M4: question마다 검색을 무제한 gather하면 claim 수 x question 수만큼 동시
+    # DB 커넥션이 발사돼 asyncpg 풀을 고갈시킬 수 있다. semaphore로 동시 발사 수를 제한.
+    semaphore = asyncio.Semaphore(settings.rarr_max_concurrency)
+
     async def _search_one(q: str) -> list[Chunk]:
         if time.monotonic() > deadline:
             return []
-        return await _search_complex(q, settings)
+        async with semaphore:
+            return await _search_complex(q, settings)
 
     results = await asyncio.gather(*[_search_one(q) for q in questions])
 
