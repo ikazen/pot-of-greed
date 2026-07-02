@@ -167,6 +167,52 @@ async def test_check_agreement_cited_case_no_not_in_supporting_downgrades(monkey
     assert result.agree is False
 
 
+# ---------------------------------------------------------------------------
+# H1 — deadline 전파
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_check_agreement_deadline_exceeded_skips_llm(monkeypatch):
+    """deadline이 이미 지났으면 LLM 호출 없이 즉시 degrade한다."""
+    calls = []
+
+    class TrackingProvider:
+        async def chat(self, messages, *, system=None, json_mode=False, timeout=None):
+            calls.append(timeout)
+            return json.dumps({"agree": True, "supporting_ids": [], "reason": ""})
+
+    import app.rarr.agreement as agreement_mod
+    monkeypatch.setattr(agreement_mod, "get_llm_provider", lambda role="default": TrackingProvider())
+
+    import time
+    from app.rarr.agreement import check_agreement
+    result = await check_agreement(Claim(text="주장"), [_make_evidence()], deadline=time.monotonic() - 1)
+
+    assert result.agree is False
+    assert calls == []  # LLM 호출 안 됨
+
+
+@pytest.mark.asyncio
+async def test_check_agreement_deadline_clamps_timeout(monkeypatch):
+    """deadline이 남아있으면 하드코딩 상한(15s)과 remaining 중 작은 값으로 timeout이 클램프된다."""
+    calls = []
+
+    class TrackingProvider:
+        async def chat(self, messages, *, system=None, json_mode=False, timeout=None):
+            calls.append(timeout)
+            return json.dumps({"agree": True, "supporting_ids": [], "reason": ""})
+
+    import app.rarr.agreement as agreement_mod
+    monkeypatch.setattr(agreement_mod, "get_llm_provider", lambda role="default": TrackingProvider())
+
+    import time
+    from app.rarr.agreement import check_agreement
+    await check_agreement(Claim(text="주장"), [_make_evidence()], deadline=time.monotonic() + 3)
+
+    assert len(calls) == 1
+    assert calls[0] <= 3
+
+
 class TestCitationsGrounded:
     def test_empty_cited_refs(self):
         from app.rarr.agreement import _citations_grounded

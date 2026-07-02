@@ -101,12 +101,12 @@ async def _process_claim(
     # 할루시네이션 인용이 있으면 agree 강제 False (agreement 앞 prune)
     has_hallucination = any(not exists for exists in citation_map.values())
 
-    agreement = await check_agreement(claim, evidence)
+    agreement = await check_agreement(claim, evidence, deadline=deadline)
     if has_hallucination:
         agreement.agree = False
 
     revised_text, used_evidence, corrections = await edit_claim(
-        claim, agreement, evidence, max_evidence=settings.rerank_top_k
+        claim, agreement, evidence, max_evidence=settings.rerank_top_k, deadline=deadline
     )
     hallucinated_refs = [ref for ref, exists in citation_map.items() if not exists]
     corrected = bool(corrections) or (revised_text != claim.text and bool(hallucinated_refs))

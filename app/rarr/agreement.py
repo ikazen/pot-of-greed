@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import dataclass, field
 
 from app.llm import get_llm_provider
@@ -36,14 +37,29 @@ def _citations_grounded(cited_refs: list[str], supporting: list[Evidence]) -> bo
     return cited <= supported
 
 
-async def check_agreement(claim: Claim, evidence: list[Evidence]) -> AgreementResult:
+async def check_agreement(
+    claim: Claim,
+    evidence: list[Evidence],
+    deadline: float | None = None,
+) -> AgreementResult:
     """주장과 근거의 일치 여부 판정.
 
     grounding_check.check_claim seam을 승격·확장: agree 여부 + 지지 근거 목록 반환.
     근거 전무 또는 LLM 실패 시 보수적 폴백(agree=False).
+
+    H1: deadline이 주어지면 남은 시간으로 timeout을 클램프하고, 이미 초과했으면
+    LLM 호출 없이 즉시 degrade한다 — 파이프라인 전체 20초 SLO를 이 함수 혼자
+    깨지 않기 위함.
     """
     if not evidence:
         return AgreementResult(agree=False, reason="근거 없음")
+
+    timeout = 15.0
+    if deadline is not None:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return AgreementResult(agree=False, reason="deadline 초과 — 원문 유지")
+        timeout = min(timeout, remaining)
 
     evidence_text = "\n".join(
         f"[{e.chunk_id}] {e.ref}\n{e.text[:400]}" for e in evidence
@@ -56,7 +72,7 @@ async def check_agreement(claim: Claim, evidence: list[Evidence]) -> AgreementRe
             [{"role": "user", "content": user_msg}],
             system=_AGREEMENT_SYSTEM,
             json_mode=True,
-            timeout=15.0,
+            timeout=timeout,
         )
         data = json.loads(raw.strip())
         llm_agree = bool(data.get("agree", False))
