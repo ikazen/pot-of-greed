@@ -100,6 +100,27 @@ async def test_decompose_claims_fallback_on_empty_list(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_decompose_claims_fallback_splits_multi_sentence_draft(monkeypatch):
+    from app.rarr.claims import decompose_claims
+
+    class ErrorProvider:
+        async def chat(self, messages, *, system=None, json_mode=False, timeout=None):
+            raise RuntimeError("LLM unavailable")
+
+    import app.rarr.claims as claims_mod
+    monkeypatch.setattr(claims_mod, "get_llm_provider", lambda role="default": ErrorProvider())
+
+    draft = "1세대1주택 비과세는 보유기간 2년이 필요하다. 소득세법 제89조에서 규정한다."
+    result = await decompose_claims(draft)
+
+    assert len(result) == 2
+    assert result[0].text == "1세대1주택 비과세는 보유기간 2년이 필요하다."
+    assert result[1].text == "소득세법 제89조에서 규정한다."
+    assert result[0].cited_refs == []
+    assert "소득세법 제89조" in result[1].cited_refs
+
+
+@pytest.mark.asyncio
 async def test_cited_refs_extracted_from_decomposed_claims(monkeypatch):
     from app.rarr.claims import decompose_claims
 
