@@ -113,6 +113,56 @@ async def test_edit_disagree_no_supporting_caps_at_max_evidence(monkeypatch):
     assert used == all_evidence[:5]
 
 
+# ---------------------------------------------------------------------------
+# H1 — deadline 전파
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_edit_deadline_exceeded_skips_llm(monkeypatch):
+    calls = []
+
+    class TrackingProvider:
+        async def chat(self, messages, *, system=None, json_mode=False, timeout=None):
+            calls.append(timeout)
+            return "수정된 주장"
+
+    import app.rarr.edit as edit_mod
+    monkeypatch.setattr(edit_mod, "get_llm_provider", lambda role="default": TrackingProvider())
+
+    import time
+    from app.rarr.edit import edit_claim
+    claim = Claim(text="원문 주장")
+    revised, used, corrections = await edit_claim(
+        claim, _disagree(), [_make_evidence()], deadline=time.monotonic() - 1
+    )
+
+    assert revised == claim.text
+    assert used == []
+    assert calls == []
+
+
+@pytest.mark.asyncio
+async def test_edit_deadline_clamps_timeout(monkeypatch):
+    calls = []
+
+    class TrackingProvider:
+        async def chat(self, messages, *, system=None, json_mode=False, timeout=None):
+            calls.append(timeout)
+            return "수정된 주장"
+
+    import app.rarr.edit as edit_mod
+    monkeypatch.setattr(edit_mod, "get_llm_provider", lambda role="default": TrackingProvider())
+
+    import time
+    from app.rarr.edit import edit_claim
+    await edit_claim(
+        Claim(text="원문 주장"), _disagree(), [_make_evidence()], deadline=time.monotonic() + 3
+    )
+
+    assert len(calls) == 1
+    assert calls[0] <= 3
+
+
 def test_extract_corrections():
     from app.rarr.edit import _extract_corrections
     text = "수정된 주장 [정정: 틀린 번호 → 제89조] 추가 내용 [정정: 다른 수정]"

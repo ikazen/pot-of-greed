@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 from app.llm import get_llm_provider
 from app.rarr.agreement import AgreementResult
 from app.rarr.types import Claim, Evidence
@@ -20,6 +22,7 @@ async def edit_claim(
     agreement: AgreementResult,
     evidence: list[Evidence],
     max_evidence: int = 5,
+    deadline: float | None = None,
 ) -> tuple[str, list[Evidence], list[str]]:
     """주장 최소 수정. agree 주장은 건드리지 않음.
 
@@ -30,12 +33,22 @@ async def edit_claim(
     H2: disagree 경로도 agree 경로처럼 귀속을 좁힌다 — supporting이 있으면 그것만,
     없으면 검색된 evidence 상위 max_evidence개로 제한. evidence 전체(20+)를 그대로
     귀속시키면 출처가 오염되고 attribution_score가 부풀려진다.
+
+    H1: deadline이 주어지면 남은 시간으로 timeout을 클램프하고, 이미 초과했으면
+    LLM 호출 없이 원문을 유지한다.
     """
     if agreement.agree:
         return claim.text, agreement.supporting, []
 
     if not evidence:
         return claim.text + " [미검증]", [], []
+
+    timeout = 20.0
+    if deadline is not None:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return claim.text, [], []
+        timeout = min(timeout, remaining)
 
     evidence_text = "\n".join(
         f"[{e.chunk_id}] {e.ref}\n{e.text[:400]}" for e in evidence
@@ -49,7 +62,7 @@ async def edit_claim(
         revised = await provider.chat(
             [{"role": "user", "content": user_msg}],
             system=_EDIT_SYSTEM,
-            timeout=20.0,
+            timeout=timeout,
         )
         revised = revised.strip()
         corrections = _extract_corrections(revised)

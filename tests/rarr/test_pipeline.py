@@ -34,10 +34,10 @@ def _noop_run_rarr_parts(monkeypatch):
 
     from app.rarr.agreement import AgreementResult
 
-    async def fake_check_agreement(claim, evidence):
+    async def fake_check_agreement(claim, evidence, deadline=None):
         return AgreementResult(agree=True, supporting=evidence)
 
-    async def fake_edit_claim(claim, agreement, evidence, max_evidence=5):
+    async def fake_edit_claim(claim, agreement, evidence, max_evidence=5, deadline=None):
         return claim.text, evidence, []
 
     monkeypatch.setattr(pipeline_mod, "draft", fake_draft)
@@ -106,10 +106,10 @@ async def test_run_rarr_builds_warnings_from_validity_flag(monkeypatch):
 
     from app.rarr.agreement import AgreementResult
 
-    async def fake_check_agreement(claim, evidence):
+    async def fake_check_agreement(claim, evidence, deadline=None):
         return AgreementResult(agree=True, supporting=evidence)
 
-    async def fake_edit_claim(claim, agreement, evidence, max_evidence=5):
+    async def fake_edit_claim(claim, agreement, evidence, max_evidence=5, deadline=None):
         return claim.text, evidence, []
 
     monkeypatch.setattr(pipeline_mod, "draft", fake_draft)
@@ -144,10 +144,10 @@ async def test_run_rarr_tracks_hallucinated_refs(monkeypatch):
 
     from app.rarr.agreement import AgreementResult
 
-    async def fake_check_agreement(claim, evidence):
+    async def fake_check_agreement(claim, evidence, deadline=None):
         return AgreementResult(agree=False, supporting=[])
 
-    async def fake_edit_claim(claim, agreement, evidence, max_evidence=5):
+    async def fake_edit_claim(claim, agreement, evidence, max_evidence=5, deadline=None):
         return "수정된 주장 [정정: 제999조 → 제89조]", evidence, ["[정정: 제999조 → 제89조]"]
 
     monkeypatch.setattr(pipeline_mod, "draft", fake_draft)
@@ -187,10 +187,10 @@ async def test_run_rarr_max_claims_cap(monkeypatch):
 
     from app.rarr.agreement import AgreementResult
 
-    async def fake_check_agreement(claim, evidence):
+    async def fake_check_agreement(claim, evidence, deadline=None):
         return AgreementResult(agree=True, supporting=evidence)
 
-    async def fake_edit_claim(claim, agreement, evidence, max_evidence=5):
+    async def fake_edit_claim(claim, agreement, evidence, max_evidence=5, deadline=None):
         return claim.text, evidence, []
 
     monkeypatch.setattr(pipeline_mod, "draft", fake_draft)
@@ -230,10 +230,10 @@ async def test_run_rarr_max_claims_cap_marks_deferred(monkeypatch):
 
     from app.rarr.agreement import AgreementResult
 
-    async def fake_check_agreement(claim, evidence):
+    async def fake_check_agreement(claim, evidence, deadline=None):
         return AgreementResult(agree=True, supporting=evidence)
 
-    async def fake_edit_claim(claim, agreement, evidence, max_evidence=5):
+    async def fake_edit_claim(claim, agreement, evidence, max_evidence=5, deadline=None):
         return claim.text, evidence, []
 
     monkeypatch.setattr(pipeline_mod, "draft", fake_draft)
@@ -291,10 +291,10 @@ async def test_run_rarr_removes_hallucination_newly_introduced_by_edit(monkeypat
 
     from app.rarr.agreement import AgreementResult
 
-    async def fake_check_agreement(claim, evidence):
+    async def fake_check_agreement(claim, evidence, deadline=None):
         return AgreementResult(agree=False, supporting=[], reason="edit 필요")
 
-    async def fake_edit_claim(claim, agreement, evidence, max_evidence=5):
+    async def fake_edit_claim(claim, agreement, evidence, max_evidence=5, deadline=None):
         # edit가 근거 없는 새 판례번호를 만들어냄 (환각)
         return "소득세법 제89조 및 2099두99999 판례에 따라 과세된다.", evidence, []
 
@@ -336,10 +336,10 @@ async def test_run_rarr_removes_hallucination_edit_failed_to_correct(monkeypatch
 
     from app.rarr.agreement import AgreementResult
 
-    async def fake_check_agreement(claim, evidence):
+    async def fake_check_agreement(claim, evidence, deadline=None):
         return AgreementResult(agree=False, supporting=[])
 
-    async def fake_edit_claim(claim, agreement, evidence, max_evidence=5):
+    async def fake_edit_claim(claim, agreement, evidence, max_evidence=5, deadline=None):
         # [정정:] 없이 원문 그대로 반환 (edit가 못 고침)
         return claim.text, evidence, []
 
@@ -359,6 +359,56 @@ async def test_run_rarr_removes_hallucination_edit_failed_to_correct(monkeypatch
     assert "소득세법 제999조" not in report.revised_text
     assert "[인용 삭제]" in report.revised_text
     assert any(w.validity_flag == "hallucination" for w in result.warnings)
+
+
+# ---------------------------------------------------------------------------
+# H1 — deadline이 agreement/edit까지 전파된다
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_process_claim_deadline_exceeded_degrades_without_llm_calls(monkeypatch):
+    """deadline을 과거로 주면 check_agreement/edit_claim에 전달되어 LLM 호출 없이 원문 유지."""
+    import time
+    from app.rarr.pipeline import _process_claim
+    from app.rarr.agreement import AgreementResult
+
+    agreement_calls = []
+    edit_calls = []
+
+    async def fake_research_claim(claim, mode, settings, deadline):
+        return [_make_evidence()]
+
+    async def fake_verify_citations(refs):
+        return {}
+
+    async def real_check_agreement(claim, evidence, deadline=None):
+        agreement_calls.append(deadline)
+        # 실제 check_agreement과 동일하게 deadline 초과 시 degrade
+        if deadline is not None and deadline - time.monotonic() <= 0:
+            return AgreementResult(agree=False, reason="deadline 초과 — 원문 유지")
+        return AgreementResult(agree=True, supporting=evidence)
+
+    async def real_edit_claim(claim, agreement, evidence, max_evidence=5, deadline=None):
+        edit_calls.append(deadline)
+        if agreement.agree:
+            return claim.text, agreement.supporting, []
+        if deadline is not None and deadline - time.monotonic() <= 0:
+            return claim.text, [], []
+        return claim.text, evidence, []
+
+    import app.rarr.pipeline as pipeline_mod
+    monkeypatch.setattr(pipeline_mod, "research_claim", fake_research_claim)
+    monkeypatch.setattr(pipeline_mod, "verify_citations", fake_verify_citations)
+    monkeypatch.setattr(pipeline_mod, "check_agreement", real_check_agreement)
+    monkeypatch.setattr(pipeline_mod, "edit_claim", real_edit_claim)
+
+    from app.config import get_settings
+    past_deadline = time.monotonic() - 1
+    report = await _process_claim(Claim(text="주장"), "simple", get_settings(), past_deadline)
+
+    assert report.revised_text == "주장"
+    assert agreement_calls == [past_deadline]
+    assert edit_calls == [past_deadline]
 
 
 @pytest.mark.asyncio
