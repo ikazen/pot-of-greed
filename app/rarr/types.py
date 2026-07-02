@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+# M1: agreement/edit이 LLM에 붙이는 evidence 스니펫 길이. 400자는 긴 조문·판례의
+# 지지 문구가 절단 밖에 위치해 거짓 불일치(불필요한 edit)를 유발해 800으로 상향.
+EVIDENCE_SNIPPET_CHARS = 800
+
 
 @dataclass
 class Claim:

@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     # RARR 튜닝 노브 (0 = 무제한)
     rarr_max_claims: int = 0
     rarr_questions_per_claim: int = 0
+    rarr_max_concurrency: int = 4
 
     # retrieval
     retrieve_top_k: int = 30

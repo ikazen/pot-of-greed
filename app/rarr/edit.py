@@ -4,7 +4,7 @@ import time
 
 from app.llm import get_llm_provider
 from app.rarr.agreement import AgreementResult
-from app.rarr.types import Claim, Evidence
+from app.rarr.types import EVIDENCE_SNIPPET_CHARS, Claim, Evidence
 
 _EDIT_SYSTEM = (
     "당신은 세법 답변 교정 전문가입니다. "
@@ -51,7 +51,7 @@ async def edit_claim(
         timeout = min(timeout, remaining)
 
     evidence_text = "\n".join(
-        f"[{e.chunk_id}] {e.ref}\n{e.text[:400]}" for e in evidence
+        f"[{e.chunk_id}] {e.ref}\n{e.text[:EVIDENCE_SNIPPET_CHARS]}" for e in evidence
     )
     user_msg = f"원래 주장: {claim.text}\n\n근거:\n{evidence_text}"
 
