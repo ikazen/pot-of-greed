@@ -19,12 +19,17 @@ async def edit_claim(
     claim: Claim,
     agreement: AgreementResult,
     evidence: list[Evidence],
+    max_evidence: int = 5,
 ) -> tuple[str, list[Evidence], list[str]]:
     """주장 최소 수정. agree 주장은 건드리지 않음.
 
     반환: (revised_text, used_evidence, corrections)
     근거 전무 시 원문 + [미검증] 플래그.
     LLM 실패 시 원문 유지 폴백.
+
+    H2: disagree 경로도 agree 경로처럼 귀속을 좁힌다 — supporting이 있으면 그것만,
+    없으면 검색된 evidence 상위 max_evidence개로 제한. evidence 전체(20+)를 그대로
+    귀속시키면 출처가 오염되고 attribution_score가 부풀려진다.
     """
     if agreement.agree:
         return claim.text, agreement.supporting, []
@@ -37,6 +42,8 @@ async def edit_claim(
     )
     user_msg = f"원래 주장: {claim.text}\n\n근거:\n{evidence_text}"
 
+    used = agreement.supporting or evidence[:max_evidence]
+
     provider = get_llm_provider("edit")
     try:
         revised = await provider.chat(
@@ -46,7 +53,7 @@ async def edit_claim(
         )
         revised = revised.strip()
         corrections = _extract_corrections(revised)
-        return revised, evidence, corrections
+        return revised, used, corrections
     except Exception:
         return claim.text, [], []
 
