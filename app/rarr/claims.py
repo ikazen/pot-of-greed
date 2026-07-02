@@ -19,6 +19,19 @@ _DECOMPOSE_SYSTEM = (
 )
 
 
+_RE_SENTENCE_SPLIT = re.compile(r"(?<=[.!?。])\s+|\n+")
+
+
+def _split_sentences(text: str) -> list[str]:
+    """구두점/개행 기준 문장 분리 (rule-based, 폴백 전용).
+
+    decompose LLM이 실패했을 때 draft 전체를 단일 claim으로 뭉치지 않기 위한
+    최소한의 다항 유지책. 형태소 수준 분리는 하지 않는다.
+    """
+    parts = [p.strip() for p in _RE_SENTENCE_SPLIT.split(text)]
+    return [p for p in parts if p]
+
+
 def _extract_refs(text: str) -> list[str]:
     matches = list(_RE_ARTICLE.finditer(text)) + list(_RE_CASE.finditer(text))
     seen: set[str] = set()
@@ -66,4 +79,8 @@ async def decompose_claims(draft_text: str) -> list[Claim]:
             return claims
     except Exception:
         pass
-    return [Claim(text=draft_text, cited_refs=_extract_refs(draft_text))]
+
+    sentences = _split_sentences(draft_text)
+    if not sentences:
+        return [Claim(text=draft_text, cited_refs=_extract_refs(draft_text))]
+    return [Claim(text=s, cited_refs=_extract_refs(s)) for s in sentences]
