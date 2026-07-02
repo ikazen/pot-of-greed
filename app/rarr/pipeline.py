@@ -148,16 +148,29 @@ async def run_rarr(query: str, mode: str, settings) -> RarrResult:
             raise TimeoutError("draft exceeded deadline")
 
         claims = await decompose_claims(draft_text)
-        if settings.rarr_max_claims:
-            claims = claims[:settings.rarr_max_claims]
+        cap = settings.rarr_max_claims
+        verified_claims = claims[:cap] if cap else claims
+        deferred_claims = claims[cap:] if cap else []
 
         reports = await asyncio.gather(
-            *[_process_claim(c, mode, settings, deadline) for c in claims]
+            *[_process_claim(c, mode, settings, deadline) for c in verified_claims]
         )
 
         final_answer = " ".join(r.revised_text for r in reports)
 
         sources, warnings = _build_outputs(list(reports), limit=settings.source_top_k)
+
+        # H3: cap에 걸려 검증 못 한 claim은 원문 그대로 붙이되 미검증 표식.
+        # 삭제 대신 유지 — 답변 내용 손실보다 "검증 안 됨"을 드러내는 쪽을 택함.
+        if deferred_claims:
+            deferred_text = " ".join(c.text for c in deferred_claims)
+            final_answer += f"\n\n[미검증] 아래 항목은 검증 한도 초과로 확인되지 않았습니다:\n{deferred_text}"
+            warnings.append(Warning(
+                chunk_id="",
+                ref="",
+                validity_flag="deferred",
+                message=f"[주의] {len(deferred_claims)}개 항목이 검증 한도(rarr_max_claims={cap})를 초과해 검증되지 않았습니다.",
+            ))
 
         # 3층 법리 (complex 모드 + 경고 있을 때만)
         if mode == "complex" and warnings:
