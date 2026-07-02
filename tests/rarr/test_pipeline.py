@@ -211,6 +211,62 @@ async def test_run_rarr_max_claims_cap(monkeypatch):
     assert len(processed_claims) == 2
 
 
+@pytest.mark.asyncio
+async def test_run_rarr_max_claims_cap_marks_deferred(monkeypatch):
+    """H3: cap 초과분은 삭제 대신 원문 유지 + 미검증 배너·warning으로 표식된다."""
+    import app.rarr.pipeline as pipeline_mod
+
+    async def fake_draft(query):
+        return "초안"
+
+    async def fake_decompose_claims(text):
+        return [Claim(text=f"주장{i}") for i in range(4)]
+
+    async def fake_research_claim(claim, mode, settings, deadline):
+        return [_make_evidence()]
+
+    async def fake_verify_citations(refs):
+        return {}
+
+    from app.rarr.agreement import AgreementResult
+
+    async def fake_check_agreement(claim, evidence):
+        return AgreementResult(agree=True, supporting=evidence)
+
+    async def fake_edit_claim(claim, agreement, evidence):
+        return claim.text, evidence, []
+
+    monkeypatch.setattr(pipeline_mod, "draft", fake_draft)
+    monkeypatch.setattr(pipeline_mod, "decompose_claims", fake_decompose_claims)
+    monkeypatch.setattr(pipeline_mod, "research_claim", fake_research_claim)
+    monkeypatch.setattr(pipeline_mod, "verify_citations", fake_verify_citations)
+    monkeypatch.setattr(pipeline_mod, "check_agreement", fake_check_agreement)
+    monkeypatch.setattr(pipeline_mod, "edit_claim", fake_edit_claim)
+
+    from app.config import get_settings
+    from app.rarr.pipeline import run_rarr
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "rarr_max_claims", 2)
+
+    result = await run_rarr("질의", "simple", settings)
+    assert "주장2" in result.answer
+    assert "주장3" in result.answer
+    assert "[미검증]" in result.answer
+    assert any(w.validity_flag == "deferred" for w in result.warnings)
+
+
+@pytest.mark.asyncio
+async def test_run_rarr_no_cap_no_deferred_marker(monkeypatch):
+    """cap 미설정(기본 0)이면 deferred 경로가 발동하지 않는다(회귀)."""
+    _noop_run_rarr_parts(monkeypatch)
+
+    from app.config import get_settings
+    from app.rarr.pipeline import run_rarr
+    result = await run_rarr("질의", "simple", get_settings())
+    assert not any(w.validity_flag == "deferred" for w in result.warnings)
+
+
 # ---------------------------------------------------------------------------
 # C2/C3 — edit 후 ref 재검증 + 환각 ref 결정론적 제거·경고
 # ---------------------------------------------------------------------------
