@@ -37,7 +37,7 @@ def _noop_run_rarr_parts(monkeypatch):
     async def fake_check_agreement(claim, evidence):
         return AgreementResult(agree=True, supporting=evidence)
 
-    async def fake_edit_claim(claim, agreement, evidence):
+    async def fake_edit_claim(claim, agreement, evidence, max_evidence=5):
         return claim.text, evidence, []
 
     monkeypatch.setattr(pipeline_mod, "draft", fake_draft)
@@ -109,7 +109,7 @@ async def test_run_rarr_builds_warnings_from_validity_flag(monkeypatch):
     async def fake_check_agreement(claim, evidence):
         return AgreementResult(agree=True, supporting=evidence)
 
-    async def fake_edit_claim(claim, agreement, evidence):
+    async def fake_edit_claim(claim, agreement, evidence, max_evidence=5):
         return claim.text, evidence, []
 
     monkeypatch.setattr(pipeline_mod, "draft", fake_draft)
@@ -147,7 +147,7 @@ async def test_run_rarr_tracks_hallucinated_refs(monkeypatch):
     async def fake_check_agreement(claim, evidence):
         return AgreementResult(agree=False, supporting=[])
 
-    async def fake_edit_claim(claim, agreement, evidence):
+    async def fake_edit_claim(claim, agreement, evidence, max_evidence=5):
         return "수정된 주장 [정정: 제999조 → 제89조]", evidence, ["[정정: 제999조 → 제89조]"]
 
     monkeypatch.setattr(pipeline_mod, "draft", fake_draft)
@@ -190,7 +190,7 @@ async def test_run_rarr_max_claims_cap(monkeypatch):
     async def fake_check_agreement(claim, evidence):
         return AgreementResult(agree=True, supporting=evidence)
 
-    async def fake_edit_claim(claim, agreement, evidence):
+    async def fake_edit_claim(claim, agreement, evidence, max_evidence=5):
         return claim.text, evidence, []
 
     monkeypatch.setattr(pipeline_mod, "draft", fake_draft)
@@ -233,7 +233,7 @@ async def test_run_rarr_max_claims_cap_marks_deferred(monkeypatch):
     async def fake_check_agreement(claim, evidence):
         return AgreementResult(agree=True, supporting=evidence)
 
-    async def fake_edit_claim(claim, agreement, evidence):
+    async def fake_edit_claim(claim, agreement, evidence, max_evidence=5):
         return claim.text, evidence, []
 
     monkeypatch.setattr(pipeline_mod, "draft", fake_draft)
@@ -294,7 +294,7 @@ async def test_run_rarr_removes_hallucination_newly_introduced_by_edit(monkeypat
     async def fake_check_agreement(claim, evidence):
         return AgreementResult(agree=False, supporting=[], reason="edit 필요")
 
-    async def fake_edit_claim(claim, agreement, evidence):
+    async def fake_edit_claim(claim, agreement, evidence, max_evidence=5):
         # edit가 근거 없는 새 판례번호를 만들어냄 (환각)
         return "소득세법 제89조 및 2099두99999 판례에 따라 과세된다.", evidence, []
 
@@ -339,7 +339,7 @@ async def test_run_rarr_removes_hallucination_edit_failed_to_correct(monkeypatch
     async def fake_check_agreement(claim, evidence):
         return AgreementResult(agree=False, supporting=[])
 
-    async def fake_edit_claim(claim, agreement, evidence):
+    async def fake_edit_claim(claim, agreement, evidence, max_evidence=5):
         # [정정:] 없이 원문 그대로 반환 (edit가 못 고침)
         return claim.text, evidence, []
 

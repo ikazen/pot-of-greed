@@ -105,7 +105,9 @@ async def _process_claim(
     if has_hallucination:
         agreement.agree = False
 
-    revised_text, used_evidence, corrections = await edit_claim(claim, agreement, evidence)
+    revised_text, used_evidence, corrections = await edit_claim(
+        claim, agreement, evidence, max_evidence=settings.rerank_top_k
+    )
     hallucinated_refs = [ref for ref, exists in citation_map.items() if not exists]
     corrected = bool(corrections) or (revised_text != claim.text and bool(hallucinated_refs))
 

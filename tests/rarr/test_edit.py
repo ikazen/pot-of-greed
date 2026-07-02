@@ -74,6 +74,45 @@ async def test_edit_llm_failure_fallback(monkeypatch):
     assert used == []
 
 
+@pytest.mark.asyncio
+async def test_edit_disagree_with_supporting_narrows_to_supporting(monkeypatch):
+    """H2: disagree라도 supporting이 있으면 그것만 귀속 (evidence 전체 아님)."""
+    class FakeProvider:
+        async def chat(self, messages, *, system=None, json_mode=False, timeout=None):
+            return "수정된 주장"
+
+    import app.rarr.edit as edit_mod
+    monkeypatch.setattr(edit_mod, "get_llm_provider", lambda role="default": FakeProvider())
+
+    from app.rarr.edit import edit_claim
+    claim = Claim(text="주장")
+    supporting_ev = _make_evidence("c-support")
+    all_evidence = [supporting_ev] + [_make_evidence(f"c{i}") for i in range(10)]
+    agreement = AgreementResult(agree=False, supporting=[supporting_ev])
+
+    revised, used, _ = await edit_claim(claim, agreement, all_evidence)
+    assert used == [supporting_ev]
+
+
+@pytest.mark.asyncio
+async def test_edit_disagree_no_supporting_caps_at_max_evidence(monkeypatch):
+    """H2: supporting이 없으면 evidence 전체가 아니라 max_evidence개로 제한."""
+    class FakeProvider:
+        async def chat(self, messages, *, system=None, json_mode=False, timeout=None):
+            return "수정된 주장"
+
+    import app.rarr.edit as edit_mod
+    monkeypatch.setattr(edit_mod, "get_llm_provider", lambda role="default": FakeProvider())
+
+    from app.rarr.edit import edit_claim
+    claim = Claim(text="주장")
+    all_evidence = [_make_evidence(f"c{i}") for i in range(20)]
+
+    revised, used, _ = await edit_claim(claim, _disagree(), all_evidence, max_evidence=5)
+    assert len(used) == 5
+    assert used == all_evidence[:5]
+
+
 def test_extract_corrections():
     from app.rarr.edit import _extract_corrections
     text = "수정된 주장 [정정: 틀린 번호 → 제89조] 추가 내용 [정정: 다른 수정]"
