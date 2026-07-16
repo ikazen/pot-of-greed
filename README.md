@@ -14,12 +14,15 @@
 
 ```
 app/
-  api/        FastAPI 엔드포인트 (/chat, /chat/stream)
+  api/        FastAPI 엔드포인트 (/chat, /chat/stream, /health)
+  auth/       JWT 인증, 고정 계정 로그인 (/auth/token)
   rarr/       RARR 파이프라인 (draft→decompose→research→agree→edit→attribution)
   retrieval/  임베딩·벡터·키워드검색·RRF·리랭킹·그래프확장
   agent/      쿼리분해·충분성루프·근거검증
+  router/     단순/복잡 모드 라우팅
   reasoning/  답변 빌더·법리 검토 (legal_reasoning_layer)
   llm/        LLM provider 추상화 (Gemini / Ollama Cloud)
+  ingest/     법제처 OPEN API 수집·매핑 (조문/판례)
   db/         PostgreSQL(pgvector) / Neo4j 커넥션
 docs/         설계 문서
 scripts/      개발·운영 도구
@@ -32,6 +35,11 @@ scripts/      개발·운영 도구
 python -m scripts.llm_test
 python -m scripts.llm_test "소득세법 제14조 요지는?"
 python -m scripts.llm_test --provider gemini --model gemini-2.5-pro
+
+# 데이터 수집 (법제처 OPEN API, 결정 D)
+python -m scripts.ingest_laws
+python -m scripts.ingest_cases
+python -m scripts.backfill_embeddings
 
 # RARR eval 하니스 (인프라 가동 시)
 python -m scripts.rarr_eval --mode both --report

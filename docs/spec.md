@@ -2,6 +2,30 @@
 
 ## 엔드포인트
 
+### POST /auth/token
+
+JWT 발급. 고정 계정(`AUTH_USERS`) 사용자명/비밀번호로 로그인.
+
+**요청**: `application/x-www-form-urlencoded` (OAuth2 password grant) — `username`, `password`
+
+**응답**
+```json
+{"access_token": "...", "token_type": "bearer"}
+```
+
+### GET /health
+
+인프라 상태 점검.
+
+**인증**: `Authorization: Bearer <JWT>`
+
+**응답**
+```json
+{"pg": "ok", "neo4j": "ok"}
+```
+
+각 값은 `"ok"` 또는 `"error"`.
+
 ### POST /chat
 
 질의응답 진입점. 전체 결과를 한 번에 반환.
@@ -122,3 +146,5 @@ data: [DONE]
 | `law_amended` | 근거 조문 개정됨 |
 | `uncertain` | 유효성 불확실 |
 | `correction` | RARR edit이 인용 번호를 정정함 (`[정정: 원본 → 수정]`) |
+| `hallucination` | 코퍼스에서 확인되지 않은 인용이 결정론적으로 제거됨 (`[인용 삭제]`) |
+| `deferred` | `rarr_max_claims` 한도 초과로 검증되지 않은 주장 |

@@ -11,9 +11,10 @@
         +--> PostgreSQL + pgvector   벡터검색 + tsvector 키워드검색 + 메타데이터
         +--> Neo4j                   조문↔판례 인용 그래프 + 판례 유효성 + 개정이력
         |
-        +--(쿼리 임베딩)--> [온프레미스 Ollama: qwen3-embedding:8b]
-        +--(리랭킹)-------> [온프레미스 Ollama: bge-reranker-v2-m3]
-        +--(LLM 추론)-----> [Ollama Cloud]
+        +--(쿼리 임베딩)------------------> [온프레미스 Ollama: qwen3-embedding:8b]
+        +--(리랭킹)----------------------> [온프레미스 Ollama: bge-reranker-v2-m3]
+        +--(RARR draft/edit/reason)------> [Gemini Cloud: gemini-2.5-flash]
+        +--(RARR aux: 분해/CQGen/agreement)--> [Ollama Cloud: glm-5.2]
 ```
 
 ## 저장소 역할 분담
