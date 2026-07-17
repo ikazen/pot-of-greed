@@ -62,14 +62,16 @@ async def test_run_rarr_returns_rarr_result(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_run_rarr_reassembles_claims(monkeypatch):
+async def test_run_rarr_preserves_draft_markdown(monkeypatch):
+    """표시 답변은 claim 재조립이 아니라 원본 draft 그대로여야 한다(마크다운 보존)."""
     _noop_run_rarr_parts(monkeypatch)
 
     from app.config import get_settings
     from app.rarr.pipeline import run_rarr
     result = await run_rarr("질의", "simple", get_settings())
-    assert "주장1" in result.answer
-    assert "주장2" in result.answer
+    assert result.answer == "초안 텍스트"
+    assert "주장1" not in result.answer
+    assert "주장2" not in result.answer
 
 
 @pytest.mark.asyncio
@@ -213,7 +215,7 @@ async def test_run_rarr_max_claims_cap(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_run_rarr_max_claims_cap_marks_deferred(monkeypatch):
-    """H3: cap 초과분은 삭제 대신 원문 유지 + 미검증 배너·warning으로 표식된다."""
+    """H3: cap 초과분은 draft 본문에 그대로 남아있고(삭제 없음) warning으로 표식된다."""
     import app.rarr.pipeline as pipeline_mod
 
     async def fake_draft(query):
@@ -250,9 +252,7 @@ async def test_run_rarr_max_claims_cap_marks_deferred(monkeypatch):
     monkeypatch.setattr(settings, "rarr_max_claims", 2)
 
     result = await run_rarr("질의", "simple", settings)
-    assert "주장2" in result.answer
-    assert "주장3" in result.answer
-    assert "[미검증]" in result.answer
+    assert result.answer == "초안"  # deferred claim도 draft 본문에 이미 포함, 인라인 배너 없음
     assert any(w.validity_flag == "deferred" for w in result.warnings)
 
 
@@ -423,6 +423,93 @@ async def test_run_rarr_no_hallucination_no_removal(monkeypatch):
     for report in result.attributions:
         assert report.removed_refs == []
     assert not any(w.validity_flag == "hallucination" for w in result.warnings)
+
+
+@pytest.mark.asyncio
+async def test_run_rarr_scrubs_hallucinated_ref_from_draft_answer(monkeypatch):
+    """draft 원문에 실린 환각 ref는 표시 답변에서 [인용 삭제]로 치환되고, 실재 ref는 보존된다."""
+    import app.rarr.pipeline as pipeline_mod
+
+    async def fake_draft(query):
+        return "소득세법 제89조 및 2099두99999 판례에 따라 과세된다."
+
+    async def fake_decompose_claims(text):
+        return [Claim(
+            text="소득세법 제89조 및 2099두99999 판례에 따라 과세된다.",
+            cited_refs=["소득세법 제89조", "2099두99999"],
+        )]
+
+    async def fake_research_claim(claim, mode, settings, deadline):
+        return [_make_evidence()]
+
+    async def fake_verify_citations(refs):
+        return {ref: (ref == "소득세법 제89조") for ref in refs}
+
+    from app.rarr.agreement import AgreementResult
+
+    async def fake_check_agreement(claim, evidence, deadline=None):
+        return AgreementResult(agree=True, supporting=evidence)
+
+    async def fake_edit_claim(claim, agreement, evidence, max_evidence=5, deadline=None):
+        return claim.text, evidence, []
+
+    monkeypatch.setattr(pipeline_mod, "draft", fake_draft)
+    monkeypatch.setattr(pipeline_mod, "decompose_claims", fake_decompose_claims)
+    monkeypatch.setattr(pipeline_mod, "research_claim", fake_research_claim)
+    monkeypatch.setattr(pipeline_mod, "verify_citations", fake_verify_citations)
+    monkeypatch.setattr(pipeline_mod, "check_agreement", fake_check_agreement)
+    monkeypatch.setattr(pipeline_mod, "edit_claim", fake_edit_claim)
+
+    from app.config import get_settings
+    from app.rarr.pipeline import run_rarr
+    result = await run_rarr("질의", "simple", get_settings())
+
+    assert "2099두99999" not in result.answer
+    assert "[인용 삭제]" in result.answer
+    assert "소득세법 제89조" in result.answer
+
+
+@pytest.mark.asyncio
+async def test_run_rarr_unverified_claims_get_aggregate_warning(monkeypatch):
+    """근거 없는 claim은 문장마다 인라인 표식 대신 집계 경고 1개로 노출된다."""
+    import app.rarr.pipeline as pipeline_mod
+
+    async def fake_draft(query):
+        return "초안 텍스트"
+
+    async def fake_decompose_claims(text):
+        return [Claim(text="주장1"), Claim(text="주장2")]
+
+    async def fake_research_claim(claim, mode, settings, deadline):
+        return []  # 근거 전무
+
+    async def fake_verify_citations(refs):
+        return {}
+
+    from app.rarr.agreement import AgreementResult
+
+    async def fake_check_agreement(claim, evidence, deadline=None):
+        return AgreementResult(agree=False, supporting=[])
+
+    async def fake_edit_claim(claim, agreement, evidence, max_evidence=5, deadline=None):
+        return claim.text + " [미검증]", [], []
+
+    monkeypatch.setattr(pipeline_mod, "draft", fake_draft)
+    monkeypatch.setattr(pipeline_mod, "decompose_claims", fake_decompose_claims)
+    monkeypatch.setattr(pipeline_mod, "research_claim", fake_research_claim)
+    monkeypatch.setattr(pipeline_mod, "verify_citations", fake_verify_citations)
+    monkeypatch.setattr(pipeline_mod, "check_agreement", fake_check_agreement)
+    monkeypatch.setattr(pipeline_mod, "edit_claim", fake_edit_claim)
+
+    from app.config import get_settings
+    from app.rarr.pipeline import run_rarr
+    result = await run_rarr("질의", "simple", get_settings())
+
+    assert result.answer == "초안 텍스트"
+    assert "[미검증]" not in result.answer
+    unverified_warnings = [w for w in result.warnings if w.validity_flag == "unverified"]
+    assert len(unverified_warnings) == 1
+    assert "2/2" in unverified_warnings[0].message
 
 
 # ---------------------------------------------------------------------------

@@ -187,15 +187,30 @@ async def run_rarr(query: str, mode: str, settings) -> RarrResult:
             *[_bounded_process(c) for c in verified_claims]
         )
 
-        final_answer = " ".join(r.revised_text for r in reports)
+        # 표시 답변은 원본 draft(마크다운 보존). claim 재조립(revised_text)은
+        # metrics/attribution 내부용일 뿐 표시에는 쓰지 않는다 — 평문 원자 주장을
+        # 공백으로 이어붙이면 draft의 제목/목록/개행이 전부 사라진다.
+        # 환각으로 확인된 ref만 원본 draft에서 결정론적으로 스크럽.
+        final_answer = draft_text
+        hallucinated_all = {ref for r in reports for ref in r.hallucinated_refs}
+        for ref in hallucinated_all:
+            final_answer = final_answer.replace(ref, "[인용 삭제]")
 
         sources, warnings = _build_outputs(list(reports), limit=settings.source_top_k)
 
-        # H3: cap에 걸려 검증 못 한 claim은 원문 그대로 붙이되 미검증 표식.
-        # 삭제 대신 유지 — 답변 내용 손실보다 "검증 안 됨"을 드러내는 쪽을 택함.
+        # 근거 없는 claim은 문장마다 인라인 표식 대신 집계 경고 1개로.
+        unverified = [r for r in reports if not r.evidence]
+        if unverified:
+            warnings.append(Warning(
+                chunk_id="",
+                ref="",
+                validity_flag="unverified",
+                message=f"[주의] {len(unverified)}/{len(reports)}개 문장이 코퍼스 근거로 확인되지 않았습니다. 내용을 반드시 확인하세요.",
+            ))
+
+        # H3: cap에 걸려 검증 못 한 claim은 draft 본문에 이미 포함돼 있으므로
+        # 인라인 배너 없이 경고만 남긴다.
         if deferred_claims:
-            deferred_text = " ".join(c.text for c in deferred_claims)
-            final_answer += f"\n\n[미검증] 아래 항목은 검증 한도 초과로 확인되지 않았습니다:\n{deferred_text}"
             warnings.append(Warning(
                 chunk_id="",
                 ref="",
