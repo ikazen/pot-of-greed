@@ -58,7 +58,7 @@ Gemini가 코퍼스 제약 없이 자유 초안 생성 → 주장 분해 → 주
 1 초안 (Gemini/draft) — 검색 없이 자유 생성
 2 주장 분해 (glm-5.2/aux) — 원자 주장 목록
    ↓ 주장별 병렬
-3a 인용 존재검증 (tsvector exact) — 할루시네이션 조문/판례 번호 prune
+3a 인용 존재검증 (구조적 컬럼 동등매칭) — 할루시네이션 조문/판례 번호 prune
 3b CQGen + 근거검색 (glm-5.2 + 기존 검색 스택)
 4  Agreement (glm-5.2/aux) — 주장↔근거 일치 여부 + 지지 근거 반환
 5  Edit (Gemini/edit) — 불일치 주장만 최소 수정, 인용 교정
