@@ -48,8 +48,7 @@ async def chat(
     mode = classify(req.query, req.mode)
 
     # RARR 강도 노브: simple=RARR-lite, complex=full RARR (결정 M)
-    simple_chunks = await _retrieve_simple(req.query, settings)
-    top_score = simple_chunks[0].score if simple_chunks else 0.0
+    top_score = await _promotion_score(req.query, settings)
     if should_promote(top_score, settings.fallback_score_threshold):
         mode = "complex"
 
@@ -71,8 +70,7 @@ async def chat_stream(
     settings = get_settings()
     mode = classify(req.query, req.mode)
 
-    simple_chunks = await _retrieve_simple(req.query, settings)
-    top_score = simple_chunks[0].score if simple_chunks else 0.0
+    top_score = await _promotion_score(req.query, settings)
     if should_promote(top_score, settings.fallback_score_threshold):
         mode = "complex"
 
@@ -95,6 +93,18 @@ async def chat_stream(
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(_event_stream(), media_type="text/event-stream")
+
+
+async def _promotion_score(query: str, settings) -> float:
+    """승격 판정 전용 — 벡터 top-1 코사인만 확인(#11).
+
+    임베딩+2검색+리랭크+그래프+parent확장까지 도는 전체 _retrieve_simple을
+    승격 신호 하나 읽으려고 돌리고 버리던 낭비를 제거한다. _retrieve_simple
+    자체는 research.py:_research_simple(claim별 실제 검색)에서 계속 쓰인다.
+    """
+    embedding = await embed_query(query)
+    vec_chunks = await vector_search(embedding, top_k=1)
+    return vec_chunks[0].score if vec_chunks else 0.0
 
 
 async def _retrieve_simple(query: str, settings) -> list[Chunk]:
