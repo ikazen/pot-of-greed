@@ -71,6 +71,22 @@ async def test_stream_chat_yields_tokens(provider):
 
 
 @pytest.mark.asyncio
+async def test_chat_reuses_client_across_calls(provider):
+    """#19: 매 호출 새 AsyncClient를 열지 않고 인스턴스 client를 재사용해야 한다."""
+    with respx.mock:
+        respx.post(_CHAT_URL).mock(return_value=httpx.Response(
+            200, json={"message": {"content": "ok"}},
+        ))
+        client_before = provider._client
+        await provider.chat([{"role": "user", "content": "q1"}])
+        client_after_first = provider._client
+        await provider.chat([{"role": "user", "content": "q2"}])
+        client_after_second = provider._client
+
+    assert client_before is client_after_first is client_after_second
+
+
+@pytest.mark.asyncio
 async def test_chat_includes_api_key_header():
     provider = OllamaProvider(base_url=_BASE, model="m", api_key="secret")
     captured = {}
