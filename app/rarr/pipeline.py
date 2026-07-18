@@ -100,8 +100,9 @@ async def _process_claim(
     mode: str,
     settings,
     deadline: float,
+    search_semaphore: asyncio.Semaphore | None = None,
 ) -> AttributionReport:
-    evidence = await research_claim(claim, mode, settings, deadline)
+    evidence = await research_claim(claim, mode, settings, deadline, search_semaphore)
     citation_map = await verify_citations(claim.cited_refs)
 
     # 할루시네이션 인용이 있으면 agree 강제 False (agreement 앞 prune)
@@ -183,11 +184,19 @@ async def run_rarr(query: str, mode: str, settings) -> RarrResult:
         verified_claims = claims[:cap] if cap else claims
         deferred_claims = claims[cap:] if cap else []
 
-        semaphore = asyncio.Semaphore(settings.rarr_max_concurrency)
+        # #15: claim 동시성과 서브쿼리 검색 동시성을 별도 세마포어로 분리한다.
+        # 같은 세마포어 인스턴스를 두 레벨에서 재사용하면(claim이 outer permit을
+        # 쥔 채 내부에서 같은 세마포어의 permit을 또 요청) rarr_max_concurrency개
+        # claim이 동시에 그 상태가 될 때 전원 블록되는 데드락이 생긴다. 대신
+        # search_semaphore를 claim마다 새로 만들지 않고 여기서 하나만 만들어
+        # 전체 실행에 공유해, "전체 동시 서브쿼리 검색 수"를 claim 수와 무관하게
+        # rarr_max_concurrency로 캡핑한다(이전: claim(4) x question(4)=최악 16).
+        claim_semaphore = asyncio.Semaphore(settings.rarr_max_concurrency)
+        search_semaphore = asyncio.Semaphore(settings.rarr_max_concurrency)
 
         async def _bounded_process(c: Claim) -> AttributionReport:
-            async with semaphore:
-                return await _process_claim(c, mode, settings, deadline)
+            async with claim_semaphore:
+                return await _process_claim(c, mode, settings, deadline, search_semaphore)
 
         reports = await asyncio.gather(
             *[_bounded_process(c) for c in verified_claims]

@@ -67,7 +67,7 @@ async def test_research_claim_complex_calls_complex_path(monkeypatch):
     chunks = [_make_chunk("c1"), _make_chunk("c2")]
     called = []
 
-    async def fake_research_complex(claim, settings, deadline):
+    async def fake_research_complex(claim, settings, deadline, search_semaphore=None):
         called.append(True)
         return chunks
 
