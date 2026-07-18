@@ -172,6 +172,9 @@ async def main() -> None:
         sys.exit(1)
 
     from app.config import get_settings
+    from app.db.pg import init_pg, close_pg
+    from app.db.neo4j import init_neo4j, close_neo4j
+
     settings = get_settings()
 
     items = _load_queries(queries_path, args.mode, args.limit)
@@ -183,13 +186,23 @@ async def main() -> None:
     print(f"노브: max_claims={settings.rarr_max_claims}, questions_per_claim={settings.rarr_questions_per_claim}")
     print()
 
-    rows = []
-    for i, item in enumerate(items, 1):
-        print(f"  [{i}/{len(items)}] {item['query'][:50]}...", end=" ", flush=True)
-        row = await _run_one(item, settings)
-        rows.append(row)
-        status = "DEGRADED" if row["degraded"] else f"{row['elapsed_s']}s"
-        print(status)
+    # PG/Neo4j 풀 초기화 — 이게 없으면 research 단계에서 "PG pool not initialised"
+    # RuntimeError가 run_rarr의 최상위 except에 조용히 잡혀 매 질의가 degrade되고,
+    # 하니스는 에러 없이 "정상 종료"돼 이 하니스가 사실상 아무것도 측정하지
+    # 못하고 있었다(#35).
+    await init_pg(settings.pg_dsn)
+    await init_neo4j(settings.neo4j_uri, settings.neo4j_user, settings.neo4j_password)
+    try:
+        rows = []
+        for i, item in enumerate(items, 1):
+            print(f"  [{i}/{len(items)}] {item['query'][:50]}...", end=" ", flush=True)
+            row = await _run_one(item, settings)
+            rows.append(row)
+            status = "DEGRADED" if row["degraded"] else f"{row['elapsed_s']}s"
+            print(status)
+    finally:
+        await close_pg()
+        await close_neo4j()
 
     print()
     agg = _aggregate(rows)
