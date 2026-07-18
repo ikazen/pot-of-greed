@@ -50,6 +50,8 @@
 
 **수정(2026-07-01, BON-217)**: F2 실현체인 `check_agreement`(`app/rarr/agreement.py`)가 명제-근거 일치(LLM `agree`)만 보고 인용-근거 정합은 안 봐서, "실재하지만 무관한" 인용이 `agree=True`로 통과하는 구멍이 있었다(adversarial review C4). `claim.cited_refs ⊆ supporting`(C1의 `parse_ref` 정규화로 조 단위 비교) 불변식을 추가해 위반 시 `agree=False`로 강등, edit 경로에 회부.
 
+**수정(2026-07-18, #16)**: F1 게이트의 원 실현체였던 `app/agent/grounding_check.py`(`check_answer`/`apply_grounding`)를 삭제했다. RARR 도입 후 `verify_citations`(구조적 인용 존재검증) + `check_agreement`(claim-evidence 정합, 위 BON-217 수정 포함) + `edit_claim`(최소 수정)이 claim 단위로 더 정밀하게 F1/F2를 모두 대체했고, chat.py에는 import만 남고 실제 호출은 없는 미배선 상태였다(고수 리뷰 지적).
+
 ---
 
 ## G. DB 구성

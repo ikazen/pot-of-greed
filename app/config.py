@@ -56,9 +56,6 @@ class Settings(BaseSettings):
     complex_mode_timeout_s: int = 20  # draft 이후 검증 단계(decompose+research+agreement+edit) 예산
     llm_timeout_s: int = 120
 
-    # grounding gate (F1)
-    grounding_action: str = "flag"  # "flag" | "strip"
-
     # source cards shown in chat UI
     source_top_k: int = 3
 
