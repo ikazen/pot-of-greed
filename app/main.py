@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -8,6 +9,13 @@ from app.db.neo4j import init_neo4j, close_neo4j
 from app.auth.routes import router as auth_router
 from app.api.health import router as health_router
 from app.api.chat import router as chat_router
+
+# 이게 없으면 logger.info/debug 호출(RARR 단계별 타이밍 포함)이 Python 기본
+# root 레벨(WARNING)에 가려져 전부 안 찍힌다.
+logging.basicConfig(
+    level=get_settings().log_level.upper(),
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
 
 
 @asynccontextmanager
