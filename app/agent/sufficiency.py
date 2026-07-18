@@ -88,6 +88,14 @@ async def sufficiency_loop(
             break
 
         query = result.rewritten_query
-        chunks = await retrieve_fn(query)
+        new_chunks = await retrieve_fn(query)
+        # #17: 재검색 결과로 이전 chunks를 통째로 버리지 않고 union한다(chunk_id
+        # 기준, score 높은 쪽 유지) — 재작성 쿼리가 원래 쿼리보다 항상 더 나은
+        # 상위집합이라는 보장이 없어 통째 교체는 정보 손실이었다.
+        merged: dict[str, Chunk] = {c.chunk_id: c for c in chunks}
+        for c in new_chunks:
+            if c.chunk_id not in merged or c.score > merged[c.chunk_id].score:
+                merged[c.chunk_id] = c
+        chunks = sorted(merged.values(), key=lambda c: c.score, reverse=True)
 
     return chunks
