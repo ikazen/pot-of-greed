@@ -13,11 +13,17 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import logging
 import statistics
 import sys
 from datetime import datetime
 from pathlib import Path
 from time import perf_counter
+
+# app.main을 거치지 않는 독립 스크립트라 #33의 basicConfig가 안 걸린다 — 이
+# 하니스는 stage=draft/decompose/claim/total 단계별 로그(#33)가 핵심 산출물이므로
+# 여기서 직접 활성화한다.
+logging.basicConfig(level="INFO", format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
 
 def _load_queries(path: Path, mode_filter: str, limit: int) -> list[dict]:
