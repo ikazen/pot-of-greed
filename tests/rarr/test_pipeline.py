@@ -675,3 +675,67 @@ async def test_run_rarr_draft_called_once_on_pipeline_failure(monkeypatch):
     assert len(draft_calls) == 1
     assert "초안 텍스트" in result.answer
     assert "[미검증]" in result.answer
+
+
+# ---------------------------------------------------------------------------
+# #14 — simple/complex 모드별 검증 deadline 예산 분리
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_run_rarr_uses_simple_mode_timeout_for_simple(monkeypatch):
+    import time
+    import app.rarr.pipeline as pipeline_mod
+
+    async def fake_draft(query, timeout=None):
+        return "초안"
+
+    captured_deadline = {}
+
+    async def fake_decompose_claims(text, deadline=None):
+        captured_deadline["value"] = deadline
+        return []
+
+    monkeypatch.setattr(pipeline_mod, "draft", fake_draft)
+    monkeypatch.setattr(pipeline_mod, "decompose_claims", fake_decompose_claims)
+
+    from app.config import get_settings
+    from app.rarr.pipeline import run_rarr
+    settings = get_settings()
+    monkeypatch.setattr(settings, "simple_mode_timeout_s", 4)
+    monkeypatch.setattr(settings, "complex_mode_timeout_s", 20)
+
+    t0 = time.monotonic()
+    await run_rarr("질의", "simple", settings)
+
+    remaining = captured_deadline["value"] - t0
+    assert 3.5 <= remaining <= 4.5  # simple 예산(4s) 근처, complex(20s)와는 뚜렷이 구분
+
+
+@pytest.mark.asyncio
+async def test_run_rarr_uses_complex_mode_timeout_for_complex(monkeypatch):
+    import time
+    import app.rarr.pipeline as pipeline_mod
+
+    async def fake_draft(query, timeout=None):
+        return "초안"
+
+    captured_deadline = {}
+
+    async def fake_decompose_claims(text, deadline=None):
+        captured_deadline["value"] = deadline
+        return []
+
+    monkeypatch.setattr(pipeline_mod, "draft", fake_draft)
+    monkeypatch.setattr(pipeline_mod, "decompose_claims", fake_decompose_claims)
+
+    from app.config import get_settings
+    from app.rarr.pipeline import run_rarr
+    settings = get_settings()
+    monkeypatch.setattr(settings, "simple_mode_timeout_s", 4)
+    monkeypatch.setattr(settings, "complex_mode_timeout_s", 20)
+
+    t0 = time.monotonic()
+    await run_rarr("질의", "complex", settings)
+
+    remaining = captured_deadline["value"] - t0
+    assert 19.5 <= remaining <= 20.5

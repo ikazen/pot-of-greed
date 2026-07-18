@@ -53,7 +53,10 @@ class Settings(BaseSettings):
     # complex mode
     sufficiency_max_iter: int = 2
     draft_timeout_s: int = 30
-    complex_mode_timeout_s: int = 20  # draft 이후 검증 단계(decompose+research+agreement+edit) 예산
+    # draft 이후 검증 단계(decompose+research+agreement+edit) 예산. simple/complex 모드가
+    # 검증 단계 비용이 크게 다르므로(#14) 노브를 분리 — simple은 README "2~4초" 목표 상한.
+    simple_mode_timeout_s: int = 4
+    complex_mode_timeout_s: int = 20
     llm_timeout_s: int = 120
 
     # source cards shown in chat UI

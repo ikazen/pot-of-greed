@@ -157,6 +157,9 @@ async def run_rarr(query: str, mode: str, settings) -> RarrResult:
     (decompose+research+agreement+edit) deadline은 draft 완료 후부터 시작한다.
     draft 이전에 하나의 deadline으로 전체를 묶으면 draft 지연이 검증 예산을
     통째로 잠식해 모든 claim이 evidence 없이 반환되는 문제가 있었다.
+
+    검증 단계 예산은 mode별로 분리(#14) — simple(RARR-lite)은 CQGen/HyDE/2hop을
+    생략해 훨씬 가벼우므로 complex와 같은 20초를 쓸 필요가 없다.
     """
     # M5: draft 실패는 그 자체로 답변 불가 상태이므로 별도 처리. 아래 파이프라인
     # 단계 실패 시의 degrade 경로가 이 draft_text를 재사용해 draft를 두 번 호출하지 않는다.
@@ -171,7 +174,8 @@ async def run_rarr(query: str, mode: str, settings) -> RarrResult:
             attributions=[],
         )
 
-    deadline = time.monotonic() + settings.complex_mode_timeout_s
+    budget = settings.simple_mode_timeout_s if mode == "simple" else settings.complex_mode_timeout_s
+    deadline = time.monotonic() + budget
 
     try:
         claims = await decompose_claims(draft_text, deadline=deadline)
