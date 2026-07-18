@@ -14,7 +14,7 @@
         +--(쿼리 임베딩)------------------> [온프레미스 Ollama: qwen3-embedding:8b]
         +--(리랭킹)----------------------> [온프레미스 Ollama: bge-reranker-v2-m3]
         +--(RARR draft/edit/reason)------> [Gemini Cloud: gemini-2.5-flash]
-        +--(RARR aux: 분해/CQGen/agreement)--> [Ollama Cloud: glm-5.2]
+        +--(RARR aux: 분해/CQGen/agreement)--> [Ollama Cloud: gpt-oss:20b]
 ```
 
 ## 저장소 역할 분담
@@ -25,7 +25,7 @@
 | Neo4j | 인용(CITES), 준용(REFERS_TO), 판례변경(OVERRULED_BY), 개정이력(AMENDED_BY) 그래프 탐색 |
 | 온프레미스 Ollama | 임베딩(qwen3-embedding:8b) + 리랭킹(bge-reranker-v2-m3) |
 | Gemini (Cloud) | RARR 초안(draft), 편집(edit), 3층 법리(reason) — 사용자 노출 산문 |
-| Ollama Cloud (glm-5.2) | RARR 주장 분해, CQGen, agreement 판정 — 내부 기계적 판단 (다량 병렬) |
+| Ollama Cloud (gpt-oss:20b) | RARR 주장 분해, CQGen, agreement 판정 — 내부 기계적 판단 (다량 병렬) |
 
 pgvector와 Neo4j를 둘 다 유지하는 이유: 조문번호/판례번호 정확매칭 + 의미 벡터검색(→ pgvector), 인용/준용/판례변경 관계 탐색(→ Neo4j). 역할이 겹치지 않는다.
 
@@ -56,11 +56,11 @@ Gemini가 코퍼스 제약 없이 자유 초안 생성 → 주장 분해 → 주
 
 ```
 1 초안 (Gemini/draft) — 검색 없이 자유 생성
-2 주장 분해 (glm-5.2/aux) — 원자 주장 목록
+2 주장 분해 (gpt-oss:20b/aux) — 원자 주장 목록
    ↓ 주장별 병렬
 3a 인용 존재검증 (구조적 컬럼 동등매칭) — 할루시네이션 조문/판례 번호 prune
-3b CQGen + 근거검색 (glm-5.2 + 기존 검색 스택)
-4  Agreement (glm-5.2/aux) — 주장↔근거 일치 여부 + 지지 근거 반환
+3b CQGen + 근거검색 (gpt-oss:20b + 기존 검색 스택)
+4  Agreement (gpt-oss:20b/aux) — 주장↔근거 일치 여부 + 지지 근거 반환
 5  Edit (Gemini/edit) — 불일치 주장만 최소 수정, 인용 교정
    ↓ 재조립
 6  Attribution (결정론) — 주장→근거 매핑, Source/Warning 생성
