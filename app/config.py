@@ -54,8 +54,12 @@ class Settings(BaseSettings):
     sufficiency_max_iter: int = 2
     draft_timeout_s: int = 30
     # draft 이후 검증 단계(decompose+research+agreement+edit) 예산. simple/complex 모드가
-    # 검증 단계 비용이 크게 다르므로(#14) 노브를 분리 — simple은 README "2~4초" 목표 상한.
-    simple_mode_timeout_s: int = 4
+    # 검증 단계 비용이 크게 다르므로(#14) 노브를 분리.
+    # simple_mode_timeout_s=12는 #35 실측 기반 — decompose(aux LLM) 단독 소요가
+    # Ollama Cloud 멀티테넌트 편차로 4~12s대를 오간다(gpt-oss:20b 기준). 원래
+    # 4s(README "2~4초" 목표에서 역산한 추측치)는 decompose 완주 자체가 불가능해
+    # research 이하 전 단계가 항상 빈 evidence로 반환되는 구조적 버그였다.
+    simple_mode_timeout_s: int = 12
     complex_mode_timeout_s: int = 20
     llm_timeout_s: int = 120
 
