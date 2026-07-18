@@ -119,40 +119,18 @@ def patch_retrieval(monkeypatch, sample_chunks):
     async def fake_hyde_embedding(query):
         return [0.2] * 1024
 
-    async def fake_expand_2hop(chunk_ids):
-        return []
-
     async def fake_decompose(query):
         from app.agent.decompose import SubQuery
         return [SubQuery(text=query, tool_hint="hybrid")]
-
-    def fake_route(subquery):
-        return "hybrid"
 
     monkeypatch.setattr("app.api.chat.embed_query", fake_embed_query)
     monkeypatch.setattr("app.api.chat.vector_search", fake_vector_search)
     monkeypatch.setattr("app.api.chat.keyword_search", fake_keyword_search)
     monkeypatch.setattr("app.api.chat.rerank", fake_rerank)
     monkeypatch.setattr("app.api.chat.expand_1hop", fake_expand_1hop)
-    monkeypatch.setattr("app.api.chat.expand_2hop", fake_expand_2hop)
     monkeypatch.setattr("app.api.chat.expand_to_parents", fake_expand_to_parents)
     monkeypatch.setattr("app.api.chat.hyde_embedding", fake_hyde_embedding)
-    async def fake_sufficiency_loop(query, retrieve_fn, settings, deadline):
-        return await retrieve_fn(query)
-
-    from app.agent.grounding_check import GroundingResult
-
-    async def fake_check_answer(answer, sources):
-        return GroundingResult(grounded=True)
-
-    def fake_apply_grounding(raw_answer, result, action):
-        return raw_answer
-
     monkeypatch.setattr("app.api.chat.decompose", fake_decompose)
-    monkeypatch.setattr("app.api.chat.route", fake_route)
-    monkeypatch.setattr("app.api.chat.sufficiency_loop", fake_sufficiency_loop)
-    monkeypatch.setattr("app.api.chat.check_answer", fake_check_answer)
-    monkeypatch.setattr("app.api.chat.apply_grounding", fake_apply_grounding)
     return sample_chunks
 
 
@@ -180,55 +158,19 @@ def patch_low_score_retrieval(monkeypatch, low_score_chunks):
     async def fake_hyde_embedding(query):
         return [0.2] * 1024
 
-    async def fake_expand_2hop(chunk_ids):
-        return []
-
     async def fake_decompose(query):
         from app.agent.decompose import SubQuery
         return [SubQuery(text=query, tool_hint="hybrid")]
-
-    def fake_route(subquery):
-        return "hybrid"
 
     monkeypatch.setattr("app.api.chat.embed_query", fake_embed_query)
     monkeypatch.setattr("app.api.chat.vector_search", fake_vector_search)
     monkeypatch.setattr("app.api.chat.keyword_search", fake_keyword_search)
     monkeypatch.setattr("app.api.chat.rerank", fake_rerank)
     monkeypatch.setattr("app.api.chat.expand_1hop", fake_expand_1hop)
-    monkeypatch.setattr("app.api.chat.expand_2hop", fake_expand_2hop)
     monkeypatch.setattr("app.api.chat.expand_to_parents", fake_expand_to_parents)
     monkeypatch.setattr("app.api.chat.hyde_embedding", fake_hyde_embedding)
-    async def fake_sufficiency_loop(query, retrieve_fn, settings, deadline):
-        return await retrieve_fn(query)
-
-    from app.agent.grounding_check import GroundingResult
-
-    async def fake_check_answer(answer, sources):
-        return GroundingResult(grounded=True)
-
-    def fake_apply_grounding(raw_answer, result, action):
-        return raw_answer
-
     monkeypatch.setattr("app.api.chat.decompose", fake_decompose)
-    monkeypatch.setattr("app.api.chat.route", fake_route)
-    monkeypatch.setattr("app.api.chat.sufficiency_loop", fake_sufficiency_loop)
-    monkeypatch.setattr("app.api.chat.check_answer", fake_check_answer)
-    monkeypatch.setattr("app.api.chat.apply_grounding", fake_apply_grounding)
     return low_score_chunks
-
-
-@pytest.fixture
-def patch_grounding(monkeypatch):
-    from app.agent.grounding_check import GroundingResult
-
-    async def fake_check_answer(answer, sources):
-        return GroundingResult(grounded=True)
-
-    def fake_apply_grounding(raw_answer, result, action):
-        return raw_answer
-
-    monkeypatch.setattr("app.api.chat.check_answer", fake_check_answer)
-    monkeypatch.setattr("app.api.chat.apply_grounding", fake_apply_grounding)
 
 
 @pytest.fixture

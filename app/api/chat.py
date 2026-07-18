@@ -15,15 +15,12 @@ from app.retrieval.vector_search import vector_search
 from app.retrieval.keyword_search import keyword_search
 from app.retrieval.fusion import rrf_fuse
 from app.retrieval.reranker import rerank
-from app.retrieval.graph_expand import expand_1hop, expand_2hop, filter_by_transaction_date
+from app.retrieval.graph_expand import expand_1hop
 from app.retrieval.context_expand import expand_to_parents
 from app.retrieval.hyde import hyde_embedding
 from app.retrieval.vector_search import Chunk, hydrate_by_ids
 from app.router.mode_classifier import classify, should_promote
 from app.agent.decompose import decompose
-from app.agent.tool_router import route
-from app.agent.sufficiency import sufficiency_loop
-from app.agent.grounding_check import check_answer, apply_grounding
 from app.rarr.pipeline import run_rarr
 
 router = APIRouter(tags=["chat"])
@@ -126,7 +123,8 @@ async def _search_complex(query: str, settings) -> list[Chunk]:
     subqueries = await decompose(query)
 
     async def _search_subquery(sq) -> list[Chunk]:
-        route(sq)  # 라우팅 결정 (graph 경로는 향후 Neo4j 직접 탐색으로 확장)
+        # tool_hint 기반 그래프 전용 라우팅(app.agent.tool_router.route)은 아직 그래프
+        # 전용 검색 백엔드가 없어 미배선 상태 — 향후 연결 지점(#16).
         direct_emb, hyde_emb = await asyncio.gather(
             embed_query(sq.text),
             hyde_embedding(sq.text),
@@ -170,35 +168,6 @@ def _extract_transaction_date(query: str) -> str | None:
     if m:
         return f"{m.group(1)}-{int(m.group(2)):02d}-01"
     return None
-
-
-async def _retrieve_complex(query: str, settings, simple_chunks: list[Chunk]) -> list[Chunk]:
-    """§5.2 1~5단계: 분해/HyDE/2홉 + 충분성 루프 + 2층 시점 필터."""
-    deadline = time.monotonic() + settings.complex_mode_timeout_s
-
-    fused_all = await sufficiency_loop(
-        query,
-        lambda q: _search_complex(q, settings),
-        settings,
-        deadline,
-    )
-
-    reranked = await rerank(query, fused_all, top_k=settings.rerank_top_k)
-
-    graph_chunks = await expand_2hop([c.chunk_id for c in reranked])
-
-    # 2층 시점 정합: 질의에 거래시점 명시 시 조문 유효범위 필터
-    txn_date = _extract_transaction_date(query)
-    if txn_date:
-        graph_chunks = filter_by_transaction_date(graph_chunks, txn_date)
-
-    graph_ids = {g.chunk_id for g in graph_chunks}
-    reranked_ids = {c.chunk_id for c in reranked}
-    extra = [c for c in fused_all if c.chunk_id in graph_ids and c.chunk_id not in reranked_ids]
-
-    final_chunks = reranked + extra
-    final_chunks += await expand_to_parents(final_chunks)
-    return final_chunks
 
 
 async def _parallel_search(
