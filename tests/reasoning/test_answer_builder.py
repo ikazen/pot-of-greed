@@ -8,53 +8,53 @@ import httpx
 from app.retrieval.vector_search import Chunk
 from app.reasoning.answer_builder import (
     legal_reasoning_layer,
-    _build_warning_message, _first_line, Warning,
+    build_warning_message, first_line, Warning,
 )
 
 
 # ---------------------------------------------------------------------------
-# _build_warning_message — §4 [주의] 포맷
+# build_warning_message — §4 [주의] 포맷
 # ---------------------------------------------------------------------------
 
 def test_warning_overruled_has_jujui_prefix():
-    msg = _build_warning_message("overruled", {})
+    msg = build_warning_message("overruled", {})
     assert msg.startswith("[주의]")
     assert "변경" in msg
 
 
 def test_warning_law_amended_has_jujui_prefix():
-    msg = _build_warning_message("law_amended", {})
+    msg = build_warning_message("law_amended", {})
     assert msg.startswith("[주의]")
     assert "개정" in msg
 
 
 def test_warning_law_amended_includes_article_if_available():
-    msg = _build_warning_message("law_amended", {"amended_article": "법인세법 제52조"})
+    msg = build_warning_message("law_amended", {"amended_article": "법인세법 제52조"})
     assert "법인세법 제52조" in msg
 
 
 def test_warning_uncertain_has_jujui_prefix():
-    msg = _build_warning_message("uncertain", {})
+    msg = build_warning_message("uncertain", {})
     assert msg.startswith("[주의]")
 
 
 # ---------------------------------------------------------------------------
-# _first_line — 요약 추출
+# first_line — 요약 추출
 # ---------------------------------------------------------------------------
 
 def test_first_line_returns_first_nonempty():
-    assert _first_line("\n\n판시사항 내용\n두번째 줄") == "판시사항 내용"
+    assert first_line("\n\n판시사항 내용\n두번째 줄") == "판시사항 내용"
 
 
 def test_first_line_truncates_at_limit():
     long = "a" * 200
-    result = _first_line(long, limit=100)
+    result = first_line(long, limit=100)
     assert len(result) == 103  # 100 chars + "..."
     assert result.endswith("...")
 
 
 def test_first_line_no_truncation_when_short():
-    result = _first_line("짧은 요약", limit=100)
+    result = first_line("짧은 요약", limit=100)
     assert result == "짧은 요약"
 
 

@@ -15,9 +15,9 @@ from app.rarr.types import AttributionReport, Claim, Evidence
 from app.reasoning.answer_builder import (
     Source,
     Warning,
-    _VALIDITY_FLAGS,
-    _build_warning_message,
-    _first_line,
+    VALIDITY_FLAGS,
+    build_warning_message,
+    first_line,
 )
 
 logger = logging.getLogger(__name__)
@@ -60,15 +60,15 @@ def _build_outputs(
             type=_evidence_type(ev),
             ref=ev.ref,
             chunk_id=ev.chunk_id,
-            summary=_first_line(ev.text),
+            summary=first_line(ev.text),
         ))
         flag = ev.meta.get("validity_flag", "")
-        if flag in _VALIDITY_FLAGS:
+        if flag in VALIDITY_FLAGS:
             warnings.append(Warning(
                 chunk_id=ev.chunk_id,
                 ref=ev.ref,
                 validity_flag=flag,
-                message=_build_warning_message(flag, ev.meta),
+                message=build_warning_message(flag, ev.meta),
             ))
 
     # corrections → 추가 warnings

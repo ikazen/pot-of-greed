@@ -8,7 +8,7 @@ from app.retrieval.vector_search import Chunk
 logger = logging.getLogger(__name__)
 
 
-def _build_warning_message(flag: str, meta: dict) -> str:
+def build_warning_message(flag: str, meta: dict) -> str:
     """§4 표기 방식: 판례별 구체적 경고 문구 생성."""
     if flag == "overruled":
         return "[주의] 이 판례는 이후 판례에 의해 변경되었습니다. 현행 법리 적용 시 결론이 달라질 수 있습니다."
@@ -37,10 +37,10 @@ class Warning:
     message: str
 
 
-_VALIDITY_FLAGS = {"overruled", "law_amended", "uncertain"}
+VALIDITY_FLAGS = {"overruled", "law_amended", "uncertain"}
 
 
-def _first_line(text: str, limit: int = 100) -> str:
+def first_line(text: str, limit: int = 100) -> str:
     first = next((ln.strip() for ln in text.splitlines() if ln.strip()), "")
     return first[:limit] + ("..." if len(first) > limit else "")
 
