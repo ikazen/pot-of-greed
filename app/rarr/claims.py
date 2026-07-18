@@ -9,8 +9,12 @@ from app.rarr.types import Claim
 
 # 조문 번호: "XXX법 제N조" 형식
 _RE_ARTICLE = re.compile(r"(?P<law>[\w가-힣]+법)\s*(?P<article>제\d+조)(?:\s*제\d+항)?")
-# 판례 번호: 연도+사건부호+번호 (예: 2018두12345, 2021도1234)
-_RE_CASE = re.compile(r"\d{4}[가-힣]+\d+")
+# 판례 번호: 연도+사건부호(화이트리스트)+번호 (예: 2018두12345, 2021도1234)
+# 사건부호로 한정하지 않으면 "2018년6월15일" 같은 날짜 표현의 "2018년6"이
+# 오탐되어 C3 안전망이 draft 답변 본문을 훼손한다(#6).
+_RE_CASE = re.compile(
+    r"\d{2,4}(?:두|도|다|누|나|가합|가단|고합|고단|구합|구단|재두|후|허|헌[가-마])\d+"
+)
 
 _DECOMPOSE_SYSTEM = (
     "주어진 세법 답변을 독립적인(decontextualized) 원자 주장(atomic claim) 목록으로 분해하세요. "
