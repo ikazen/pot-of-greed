@@ -120,6 +120,44 @@ async def test_loop_reruns_on_insufficient(ollama_url, sample_chunks, fake_setti
 
 
 @pytest.mark.asyncio
+async def test_loop_reruns_unions_instead_of_replacing(ollama_url, fake_settings):
+    """#17: 재검색 결과로 이전 chunks를 통째로 버리지 않고 union한다.
+
+    재작성 쿼리가 원래 쿼리와 다른 chunk_id를 반환할 때, 이전에 나온 것도
+    최종 결과에 남아있어야 한다(정보 손실 없음).
+    """
+    first_round = [Chunk("art_first", "article", "첫 라운드 조문", 0.7,
+                          {"law_name": "소득세법", "article_no": "제14조", "clause_path": None, "is_current": True})]
+    second_round = [Chunk("art_second", "article", "두번째 라운드 조문", 0.9,
+                           {"law_name": "소득세법", "article_no": "제47조", "clause_path": None, "is_current": True})]
+
+    call_count = 0
+
+    async def retrieve_fn(q):
+        nonlocal call_count
+        call_count += 1
+        return first_round if call_count == 1 else second_round
+
+    responses = [
+        json.dumps({"sufficient": False, "rewritten_query": "소득세법 제47조 상세"}),
+        json.dumps({"sufficient": True}),
+    ]
+
+    with respx.mock:
+        respx.post(ollama_url).mock(side_effect=[
+            httpx.Response(200, json={"message": {"content": responses[0]}}),
+            httpx.Response(200, json={"message": {"content": responses[1]}}),
+        ])
+        deadline = time.monotonic() + 20
+        result = await sufficiency_loop("소득세?", retrieve_fn, fake_settings, deadline)
+
+    result_ids = {c.chunk_id for c in result}
+    assert result_ids == {"art_first", "art_second"}  # 둘 다 남아있어야 함(union)
+    # score 내림차순 유지
+    assert result[0].chunk_id == "art_second"
+
+
+@pytest.mark.asyncio
 async def test_loop_max_iter_cap(ollama_url, sample_chunks, fake_settings):
     """max_iter(=2) 도달 시 무한루프 없이 종료."""
     call_count = 0
