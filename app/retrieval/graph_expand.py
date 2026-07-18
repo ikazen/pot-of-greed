@@ -38,7 +38,9 @@ async def expand_1hop(chunk_ids: list[str]) -> list[GraphChunk]:
                 neighbor.law_name AS law_name,
                 neighbor.article_no AS article_no,
                 neighbor.case_no AS case_no,
-                neighbor.court AS court
+                neighbor.court AS court,
+                neighbor.effective_from AS effective_from,
+                neighbor.effective_to AS effective_to
             """,
             ids=chunk_ids,
         )
@@ -92,7 +94,9 @@ async def expand_2hop(chunk_ids: list[str]) -> list[GraphChunk]:
                 neighbor.validity_flag AS validity_flag,
                 neighbor.law_name AS law_name,
                 neighbor.article_no AS article_no,
-                neighbor.case_no AS case_no
+                neighbor.case_no AS case_no,
+                neighbor.effective_from AS effective_from,
+                neighbor.effective_to AS effective_to
             """,
             ids=chunk_ids,
         )
