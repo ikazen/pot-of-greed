@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -102,8 +103,14 @@ async def _process_claim(
     settings,
     deadline: float,
     search_semaphore: asyncio.Semaphore | None = None,
+    run_id: str = "",
+    claim_idx: str = "",
 ) -> AttributionReport:
+    t_research = time.monotonic()
     evidence = await research_claim(claim, mode, settings, deadline, search_semaphore)
+    research_ms = int((time.monotonic() - t_research) * 1000)
+
+    t_agreement = time.monotonic()
     citation_map = await verify_citations(claim.cited_refs)
 
     # 할루시네이션 인용이 있으면 agree 강제 False (agreement 앞 prune)
@@ -112,7 +119,9 @@ async def _process_claim(
     agreement = await check_agreement(claim, evidence, deadline=deadline)
     if has_hallucination:
         agreement.agree = False
+    agreement_ms = int((time.monotonic() - t_agreement) * 1000)
 
+    t_edit = time.monotonic()
     revised_text, used_evidence, corrections = await edit_claim(
         claim, agreement, evidence, max_evidence=settings.rerank_top_k, deadline=deadline
     )
@@ -125,6 +134,7 @@ async def _process_claim(
     else:
         revised_refs = _extract_refs(revised_text)
         revised_map = await verify_citations(revised_refs)
+    edit_ms = int((time.monotonic() - t_edit) * 1000)
 
     # C3: 최종 텍스트에 남은 미검증 ref는 결정론적으로 제거 — LLM이 [정정:]을 안 붙여도 안전망 작동.
     removed_refs = [ref for ref in revised_refs if not revised_map.get(ref, False)]
@@ -136,6 +146,12 @@ async def _process_claim(
     # 오산해 hallucination_correction_rate를 부풀렸다.
     corrected = bool(hallucinated_refs) and all(
         ref not in revised_text for ref in hallucinated_refs
+    )
+
+    total_ms = research_ms + agreement_ms + edit_ms
+    logger.info(
+        f"RARR stage=claim run_id={run_id} mode={mode} claim={claim_idx} "
+        f"research_ms={research_ms} agreement_ms={agreement_ms} edit_ms={edit_ms} total_ms={total_ms}"
     )
 
     return AttributionReport(
@@ -171,23 +187,36 @@ async def run_rarr(
     on_progress(#13): draft 완료·claim 분해 완료·claim 검증 완료마다 호출되는
     선택적 콜백(app.llm.ollama의 on_request 훅과 동일 패턴) — /chat/stream이
     이걸로 SSE 진행상태 이벤트를 흘린다. None이면 무시.
+
+    단계별 소요시간은 logger.info로 logfmt 스타일 라인을 남긴다(#33) —
+    `RARR stage=... run_id=...`로 grep/Loki 조회 가능. run_id는 이 실행 하나를
+    식별하는 임의 8자리 — claim 세마포어(#15)로 여러 claim이 동시 처리되고
+    서버도 동시 요청을 받을 수 있어 correlation 없인 로그가 뒤섞인다.
     """
     def _progress(message: str) -> None:
         if on_progress:
             on_progress(message)
 
+    run_id = uuid.uuid4().hex[:8]
+    t_total = time.monotonic()
+
     # M5: draft 실패는 그 자체로 답변 불가 상태이므로 별도 처리. 아래 파이프라인
     # 단계 실패 시의 degrade 경로가 이 draft_text를 재사용해 draft를 두 번 호출하지 않는다.
+    t_draft = time.monotonic()
     try:
         draft_text = await draft(query, timeout=settings.draft_timeout_s)
     except Exception:
         logger.warning("RARR draft 실패", exc_info=True)
+        elapsed_ms = int((time.monotonic() - t_total) * 1000)
+        logger.info(f"RARR stage=total run_id={run_id} mode={mode} elapsed_ms={elapsed_ms} outcome=draft_failed")
         return RarrResult(
             answer="답변을 생성할 수 없습니다.\n\n[미검증] 답변 검증에 실패했습니다. 내용을 반드시 확인하세요.",
             sources=[],
             warnings=[],
             attributions=[],
         )
+    draft_ms = int((time.monotonic() - t_draft) * 1000)
+    logger.info(f"RARR stage=draft run_id={run_id} mode={mode} elapsed_ms={draft_ms}")
 
     _progress("초안 작성 완료")
 
@@ -195,10 +224,16 @@ async def run_rarr(
     deadline = time.monotonic() + budget
 
     try:
+        t_decompose = time.monotonic()
         claims = await decompose_claims(draft_text, deadline=deadline)
         cap = settings.rarr_max_claims
         verified_claims = claims[:cap] if cap else claims
         deferred_claims = claims[cap:] if cap else []
+        decompose_ms = int((time.monotonic() - t_decompose) * 1000)
+        logger.info(
+            f"RARR stage=decompose run_id={run_id} mode={mode} "
+            f"elapsed_ms={decompose_ms} claims={len(verified_claims)}"
+        )
 
         _progress(f"{len(verified_claims)}개 주장 분해 완료")
 
@@ -215,16 +250,19 @@ async def run_rarr(
         completed = 0
         total = len(verified_claims)
 
-        async def _bounded_process(c: Claim) -> AttributionReport:
+        async def _bounded_process(idx: int, c: Claim) -> AttributionReport:
             nonlocal completed
             async with claim_semaphore:
-                result = await _process_claim(c, mode, settings, deadline, search_semaphore)
+                result = await _process_claim(
+                    c, mode, settings, deadline, search_semaphore,
+                    run_id=run_id, claim_idx=f"{idx}/{total}",
+                )
             completed += 1
             _progress(f"검증 {completed}/{total}")
             return result
 
         reports = await asyncio.gather(
-            *[_bounded_process(c) for c in verified_claims]
+            *[_bounded_process(i, c) for i, c in enumerate(verified_claims, start=1)]
         )
 
         # 표시 답변은 원본 draft(마크다운 보존). claim 재조립(revised_text)은
@@ -274,9 +312,15 @@ async def run_rarr(
                 )
                 for r in reports for ev in r.evidence
             ]
+            t_reasoning = time.monotonic()
             reasoning = await legal_reasoning_layer(query, chunks_for_reasoning, warnings)
+            reasoning_ms = int((time.monotonic() - t_reasoning) * 1000)
+            logger.info(f"RARR stage=legal_reasoning run_id={run_id} mode={mode} elapsed_ms={reasoning_ms}")
             if reasoning:
                 final_answer += f"\n\n## 법리 검토\n{reasoning}"
+
+        elapsed_ms = int((time.monotonic() - t_total) * 1000)
+        logger.info(f"RARR stage=total run_id={run_id} mode={mode} elapsed_ms={elapsed_ms} outcome=success")
 
         return RarrResult(
             answer=final_answer,
@@ -287,6 +331,8 @@ async def run_rarr(
 
     except Exception:
         logger.warning("RARR pipeline failed — degrading to draft", exc_info=True)
+        elapsed_ms = int((time.monotonic() - t_total) * 1000)
+        logger.info(f"RARR stage=total run_id={run_id} mode={mode} elapsed_ms={elapsed_ms} outcome=degrade")
         return RarrResult(
             answer=draft_text + "\n\n[미검증] 답변 검증에 실패했습니다. 내용을 반드시 확인하세요.",
             sources=[],

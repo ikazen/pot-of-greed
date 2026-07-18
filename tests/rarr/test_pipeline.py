@@ -869,3 +869,66 @@ async def test_run_rarr_on_progress_not_called_on_draft_failure(monkeypatch):
     await run_rarr("질의", "simple", get_settings(), on_progress=events.append)
 
     assert events == []
+
+
+# ---------------------------------------------------------------------------
+# #33 — 단계별 시간 로깅
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_run_rarr_logs_stage_timings_with_consistent_run_id(monkeypatch, caplog):
+    """draft/decompose/claim(x2)/total 로그가 전부 찍히고 run_id가 전 라인에서 동일해야 한다."""
+    import logging
+    _noop_run_rarr_parts(monkeypatch)  # fake_decompose_claims는 주장 2개 반환
+
+    from app.config import get_settings
+    from app.rarr.pipeline import run_rarr
+
+    with caplog.at_level(logging.INFO, logger="app.rarr.pipeline"):
+        await run_rarr("질의", "simple", get_settings())
+
+    rarr_logs = [r.message for r in caplog.records if r.message.startswith("RARR stage=")]
+    stages = [line.split("stage=")[1].split(" ")[0] for line in rarr_logs]
+
+    assert stages.count("draft") == 1
+    assert stages.count("decompose") == 1
+    assert stages.count("claim") == 2  # fake_decompose_claims가 2개 반환
+    assert stages.count("total") == 1
+    assert stages[-1] == "total"  # 총 소요시간 로그가 마지막
+
+    run_ids = {line.split("run_id=")[1].split(" ")[0] for line in rarr_logs}
+    assert len(run_ids) == 1  # 전 라인이 같은 run_id
+
+    total_line = next(line for line in rarr_logs if "stage=total" in line)
+    assert "outcome=success" in total_line
+    assert "elapsed_ms=" in total_line
+
+    claim_lines = [line for line in rarr_logs if "stage=claim" in line]
+    for line in claim_lines:
+        assert "research_ms=" in line
+        assert "agreement_ms=" in line
+        assert "edit_ms=" in line
+        assert "total_ms=" in line
+
+
+@pytest.mark.asyncio
+async def test_run_rarr_logs_total_outcome_draft_failed(monkeypatch, caplog):
+    """draft 실패 시 stage=total outcome=draft_failed 하나만 찍히고 draft/decompose/claim은 없어야 한다."""
+    import logging
+    import app.rarr.pipeline as pipeline_mod
+
+    async def failing_draft(query, timeout=None):
+        raise RuntimeError("LLM error")
+
+    monkeypatch.setattr(pipeline_mod, "draft", failing_draft)
+
+    from app.config import get_settings
+    from app.rarr.pipeline import run_rarr
+
+    with caplog.at_level(logging.INFO, logger="app.rarr.pipeline"):
+        await run_rarr("질의", "simple", get_settings())
+
+    rarr_logs = [r.message for r in caplog.records if r.message.startswith("RARR stage=")]
+    assert len(rarr_logs) == 1
+    assert "stage=total" in rarr_logs[0]
+    assert "outcome=draft_failed" in rarr_logs[0]
