@@ -89,7 +89,7 @@ async def test_research_complex_questions_per_claim_cap(monkeypatch):
 
     search_calls = []
 
-    async def fake_generate_questions(claim):
+    async def fake_generate_questions(claim, deadline=None):
         return ["q1", "q2", "q3", "q4", "q5"]
 
     async def fake_search_complex(query, settings):

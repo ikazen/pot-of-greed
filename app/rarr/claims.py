@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 
 from app.llm import get_llm_provider
 from app.rarr.types import Claim
@@ -60,25 +61,40 @@ def parse_ref(ref: str) -> tuple[str, tuple[str, ...]] | None:
     return None
 
 
-async def decompose_claims(draft_text: str) -> list[Claim]:
-    provider = get_llm_provider("aux")
-    try:
-        raw = await provider.chat(
-            [{"role": "user", "content": draft_text}],
-            system=_DECOMPOSE_SYSTEM,
-            json_mode=True,
-            timeout=15.0,
-        )
-        items = json.loads(raw.strip())
-        claims = [
-            Claim(text=item["text"], cited_refs=_extract_refs(item["text"]))
-            for item in items
-            if isinstance(item, dict) and item.get("text")
-        ]
-        if claims:
-            return claims
-    except Exception:
-        pass
+async def decompose_claims(draft_text: str, deadline: float | None = None) -> list[Claim]:
+    """draft 텍스트를 원자 주장으로 분해.
+
+    H1: deadline이 주어지면 남은 시간으로 timeout을 클램프하고, 이미 초과했으면
+    LLM 호출 없이 규칙기반 폴백(_split_sentences)으로 직행한다.
+    """
+    timeout = 15.0
+    skip_llm = False
+    if deadline is not None:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            skip_llm = True
+        else:
+            timeout = min(timeout, remaining)
+
+    if not skip_llm:
+        provider = get_llm_provider("aux")
+        try:
+            raw = await provider.chat(
+                [{"role": "user", "content": draft_text}],
+                system=_DECOMPOSE_SYSTEM,
+                json_mode=True,
+                timeout=timeout,
+            )
+            items = json.loads(raw.strip())
+            claims = [
+                Claim(text=item["text"], cited_refs=_extract_refs(item["text"]))
+                for item in items
+                if isinstance(item, dict) and item.get("text")
+            ]
+            if claims:
+                return claims
+        except Exception:
+            pass
 
     sentences = _split_sentences(draft_text)
     if not sentences:

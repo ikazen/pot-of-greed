@@ -9,9 +9,10 @@ _DRAFT_SYSTEM = (
 )
 
 
-async def draft(query: str) -> str:
+async def draft(query: str, timeout: float | None = None) -> str:
     provider = get_llm_provider("draft")
     return await provider.chat(
         [{"role": "user", "content": query}],
         system=_DRAFT_SYSTEM,
+        timeout=timeout,
     )

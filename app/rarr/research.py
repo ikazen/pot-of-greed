@@ -35,7 +35,7 @@ async def _research_complex(claim: Claim, settings, deadline: float) -> list[Chu
 
     from app.rarr.query_gen import generate_questions
 
-    questions = await generate_questions(claim)
+    questions = await generate_questions(claim, deadline=deadline)
     if settings.rarr_questions_per_claim:
         questions = questions[:settings.rarr_questions_per_claim]
 

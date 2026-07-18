@@ -20,10 +20,10 @@ def _noop_run_rarr_parts(monkeypatch):
     """pipeline 단계별 함수를 간단한 가짜로 교체."""
     import app.rarr.pipeline as pipeline_mod
 
-    async def fake_draft(query):
+    async def fake_draft(query, timeout=None):
         return "초안 텍스트"
 
-    async def fake_decompose_claims(text):
+    async def fake_decompose_claims(text, deadline=None):
         return [Claim(text="주장1"), Claim(text="주장2")]
 
     async def fake_research_claim(claim, mode, settings, deadline):
@@ -78,7 +78,7 @@ async def test_run_rarr_preserves_draft_markdown(monkeypatch):
 async def test_run_rarr_degrade_on_failure(monkeypatch):
     import app.rarr.pipeline as pipeline_mod
 
-    async def failing_draft(query):
+    async def failing_draft(query, timeout=None):
         raise RuntimeError("LLM error")
 
     monkeypatch.setattr(pipeline_mod, "draft", failing_draft)
@@ -94,10 +94,10 @@ async def test_run_rarr_degrade_on_failure(monkeypatch):
 async def test_run_rarr_builds_warnings_from_validity_flag(monkeypatch):
     import app.rarr.pipeline as pipeline_mod
 
-    async def fake_draft(query):
+    async def fake_draft(query, timeout=None):
         return "초안"
 
-    async def fake_decompose_claims(text):
+    async def fake_decompose_claims(text, deadline=None):
         return [Claim(text="주장")]
 
     async def fake_research_claim(claim, mode, settings, deadline):
@@ -131,10 +131,10 @@ async def test_run_rarr_builds_warnings_from_validity_flag(monkeypatch):
 async def test_run_rarr_tracks_hallucinated_refs(monkeypatch):
     import app.rarr.pipeline as pipeline_mod
 
-    async def fake_draft(query):
+    async def fake_draft(query, timeout=None):
         return "초안"
 
-    async def fake_decompose_claims(text):
+    async def fake_decompose_claims(text, deadline=None):
         from app.rarr.types import Claim
         return [Claim(text="소득세법 제999조 주장", cited_refs=["소득세법 제999조"])]
 
@@ -172,10 +172,10 @@ async def test_run_rarr_max_claims_cap(monkeypatch):
     """rarr_max_claims=2이면 decompose가 4개 반환해도 2개만 처리된다."""
     import app.rarr.pipeline as pipeline_mod
 
-    async def fake_draft(query):
+    async def fake_draft(query, timeout=None):
         return "초안"
 
-    async def fake_decompose_claims(text):
+    async def fake_decompose_claims(text, deadline=None):
         return [Claim(text=f"주장{i}") for i in range(4)]
 
     processed_claims = []
@@ -218,10 +218,10 @@ async def test_run_rarr_max_claims_cap_marks_deferred(monkeypatch):
     """H3: cap 초과분은 draft 본문에 그대로 남아있고(삭제 없음) warning으로 표식된다."""
     import app.rarr.pipeline as pipeline_mod
 
-    async def fake_draft(query):
+    async def fake_draft(query, timeout=None):
         return "초안"
 
-    async def fake_decompose_claims(text):
+    async def fake_decompose_claims(text, deadline=None):
         return [Claim(text=f"주장{i}") for i in range(4)]
 
     async def fake_research_claim(claim, mode, settings, deadline):
@@ -276,10 +276,10 @@ async def test_run_rarr_removes_hallucination_newly_introduced_by_edit(monkeypat
     """edit LLM이 코퍼스에 없는 새 판례를 삽입해도 재검증되어 제거·경고돼야 한다."""
     import app.rarr.pipeline as pipeline_mod
 
-    async def fake_draft(query):
+    async def fake_draft(query, timeout=None):
         return "초안"
 
-    async def fake_decompose_claims(text):
+    async def fake_decompose_claims(text, deadline=None):
         return [Claim(text="소득세법 제89조에 따라 과세된다.", cited_refs=["소득세법 제89조"])]
 
     async def fake_research_claim(claim, mode, settings, deadline):
@@ -322,10 +322,10 @@ async def test_run_rarr_removes_hallucination_edit_failed_to_correct(monkeypatch
     """edit가 [정정:]을 못 붙이고 환각 ref를 그대로 남겨도 안전망이 제거·경고한다."""
     import app.rarr.pipeline as pipeline_mod
 
-    async def fake_draft(query):
+    async def fake_draft(query, timeout=None):
         return "초안"
 
-    async def fake_decompose_claims(text):
+    async def fake_decompose_claims(text, deadline=None):
         return [Claim(text="소득세법 제999조 주장", cited_refs=["소득세법 제999조"])]
 
     async def fake_research_claim(claim, mode, settings, deadline):
@@ -430,10 +430,10 @@ async def test_run_rarr_scrubs_hallucinated_ref_from_draft_answer(monkeypatch):
     """draft 원문에 실린 환각 ref는 표시 답변에서 [인용 삭제]로 치환되고, 실재 ref는 보존된다."""
     import app.rarr.pipeline as pipeline_mod
 
-    async def fake_draft(query):
+    async def fake_draft(query, timeout=None):
         return "소득세법 제89조 및 2099두99999 판례에 따라 과세된다."
 
-    async def fake_decompose_claims(text):
+    async def fake_decompose_claims(text, deadline=None):
         return [Claim(
             text="소득세법 제89조 및 2099두99999 판례에 따라 과세된다.",
             cited_refs=["소득세법 제89조", "2099두99999"],
@@ -474,10 +474,10 @@ async def test_run_rarr_unverified_claims_get_aggregate_warning(monkeypatch):
     """근거 없는 claim은 문장마다 인라인 표식 대신 집계 경고 1개로 노출된다."""
     import app.rarr.pipeline as pipeline_mod
 
-    async def fake_draft(query):
+    async def fake_draft(query, timeout=None):
         return "초안 텍스트"
 
-    async def fake_decompose_claims(text):
+    async def fake_decompose_claims(text, deadline=None):
         return [Claim(text="주장1"), Claim(text="주장2")]
 
     async def fake_research_claim(claim, mode, settings, deadline):
@@ -578,10 +578,10 @@ async def test_run_rarr_sources_sorted_by_score_descending(monkeypatch):
             meta={"law_name": "소득세법", "article_no": f"제{chunk_id}조"},
         )
 
-    async def fake_draft(query):
+    async def fake_draft(query, timeout=None):
         return "초안"
 
-    async def fake_decompose_claims(text):
+    async def fake_decompose_claims(text, deadline=None):
         return [Claim(text="주장1"), Claim(text="주장2")]
 
     async def fake_research_claim(claim, mode, settings, deadline):
@@ -621,10 +621,10 @@ async def test_run_rarr_bounds_claim_concurrency(monkeypatch):
     import app.rarr.pipeline as pipeline_mod
     from app.rarr.types import AttributionReport
 
-    async def fake_draft(query):
+    async def fake_draft(query, timeout=None):
         return "초안"
 
-    async def fake_decompose_claims(text):
+    async def fake_decompose_claims(text, deadline=None):
         return [Claim(text=f"주장{i}") for i in range(6)]
 
     current = 0
@@ -658,7 +658,7 @@ async def test_run_rarr_draft_called_once_on_pipeline_failure(monkeypatch):
 
     draft_calls = []
 
-    async def fake_draft(query):
+    async def fake_draft(query, timeout=None):
         draft_calls.append(query)
         return "초안 텍스트"
 

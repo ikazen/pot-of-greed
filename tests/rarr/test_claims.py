@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 import pytest
 
 
@@ -137,3 +138,48 @@ async def test_cited_refs_extracted_from_decomposed_claims(monkeypatch):
 
     result = await decompose_claims("any")
     assert result[0].cited_refs  # refs 추출됨
+
+
+# ---------------------------------------------------------------------------
+# H1 — deadline 전파
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_decompose_claims_deadline_exceeded_skips_llm(monkeypatch):
+    """deadline이 이미 지났으면 LLM 호출 없이 규칙기반 폴백으로 직행한다."""
+    calls = []
+
+    class TrackingProvider:
+        async def chat(self, messages, *, system=None, json_mode=False, timeout=None):
+            calls.append(timeout)
+            return json.dumps([{"text": "무시됨"}])
+
+    import app.rarr.claims as claims_mod
+    monkeypatch.setattr(claims_mod, "get_llm_provider", lambda role="default": TrackingProvider())
+
+    from app.rarr.claims import decompose_claims
+    draft = "1세대1주택 비과세는 보유기간 2년이 필요하다."
+    result = await decompose_claims(draft, deadline=time.monotonic() - 1)
+
+    assert calls == []  # LLM 호출 안 됨
+    assert result[0].text == draft
+
+
+@pytest.mark.asyncio
+async def test_decompose_claims_deadline_clamps_timeout(monkeypatch):
+    """deadline이 남아있으면 하드코딩 상한(15s)과 remaining 중 작은 값으로 timeout이 클램프된다."""
+    calls = []
+
+    class TrackingProvider:
+        async def chat(self, messages, *, system=None, json_mode=False, timeout=None):
+            calls.append(timeout)
+            return json.dumps([{"text": "주장"}])
+
+    import app.rarr.claims as claims_mod
+    monkeypatch.setattr(claims_mod, "get_llm_provider", lambda role="default": TrackingProvider())
+
+    from app.rarr.claims import decompose_claims
+    await decompose_claims("초안", deadline=time.monotonic() + 3)
+
+    assert len(calls) == 1
+    assert calls[0] <= 3
