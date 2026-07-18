@@ -4,7 +4,7 @@ import asyncio
 import time
 
 from app.rarr.types import Claim, Evidence
-from app.retrieval.vector_search import Chunk
+from app.retrieval.vector_search import Chunk, hydrate_by_ids
 
 
 def _chunk_to_evidence(chunk: Chunk) -> Evidence:
@@ -70,9 +70,13 @@ async def _research_complex(claim: Claim, settings, deadline: float) -> list[Chu
 
     graph_ids = {g.chunk_id for g in graph_chunks}
     reranked_ids = {c.chunk_id for c in reranked}
+    fused_ids = {c.chunk_id for c in fused}
     extra = [c for c in fused if c.chunk_id in graph_ids and c.chunk_id not in reranked_ids]
+    # #8: fused/reranked 밖에서 그래프로만 발견된 chunk는 PG에서 본문을 직접 채운다.
+    missing_ids = graph_ids - fused_ids - reranked_ids
+    hydrated = await hydrate_by_ids(list(missing_ids)) if missing_ids else []
 
-    final = reranked + extra
+    final = reranked + extra + hydrated
     final += await expand_to_parents(final)
     return final
 

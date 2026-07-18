@@ -18,7 +18,7 @@ from app.retrieval.reranker import rerank
 from app.retrieval.graph_expand import expand_1hop, expand_2hop, filter_by_transaction_date
 from app.retrieval.context_expand import expand_to_parents
 from app.retrieval.hyde import hyde_embedding
-from app.retrieval.vector_search import Chunk
+from app.retrieval.vector_search import Chunk, hydrate_by_ids
 from app.router.mode_classifier import classify, should_promote
 from app.agent.decompose import decompose
 from app.agent.tool_router import route
@@ -107,9 +107,14 @@ async def _retrieve_simple(query: str, settings) -> list[Chunk]:
     reranked = await rerank(query, fused, top_k=settings.rerank_top_k)
     extra_graph = await expand_1hop([c.chunk_id for c in reranked])
     extra_chunk_ids = {g.chunk_id for g in extra_graph}
-    final_chunks = reranked + [
-        c for c in fused if c.chunk_id in extra_chunk_ids and c.chunk_id not in {r.chunk_id for r in reranked}
-    ]
+    reranked_ids = {r.chunk_id for r in reranked}
+    fused_ids = {c.chunk_id for c in fused}
+    in_pool = [c for c in fused if c.chunk_id in extra_chunk_ids and c.chunk_id not in reranked_ids]
+    # #8: 검색 후보 풀(fused) 밖에서 그래프로만 발견된 chunk는 본문을 PG에서 직접 채운다
+    # — 그렇지 않으면 id만 알고 텍스트가 없어 통째로 드롭된다.
+    missing_ids = extra_chunk_ids - fused_ids - reranked_ids
+    hydrated = await hydrate_by_ids(list(missing_ids)) if missing_ids else []
+    final_chunks = reranked + in_pool + hydrated
     final_chunks += await expand_to_parents(final_chunks)
     return final_chunks
 
