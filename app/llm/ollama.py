@@ -22,6 +22,12 @@ class OllamaProvider:
         self._api_key = api_key
         self._default_timeout = default_timeout
         self._on_request = on_request
+        # #19: 호출마다 새 AsyncClient를 열면 매번 콜드 TLS 핸드셰이크가 발생해
+        # 동시 요청 부하에서 ReadTimeout이 잦았다. 인스턴스 수명 동안 재사용.
+        self._client = httpx.AsyncClient(timeout=default_timeout)
+
+    async def aclose(self) -> None:
+        await self._client.aclose()
 
     def _headers(self) -> dict[str, str]:
         if self._api_key:
@@ -64,13 +70,13 @@ class OllamaProvider:
 
         self._fire_hook(payload)
 
-        async with httpx.AsyncClient(timeout=timeout or self._default_timeout) as client:
-            resp = await client.post(
-                f"{self._base_url}/api/chat",
-                headers=self._headers(),
-                json=payload,
-            )
-            resp.raise_for_status()
+        resp = await self._client.post(
+            f"{self._base_url}/api/chat",
+            headers=self._headers(),
+            json=payload,
+            timeout=timeout if timeout is not None else self._default_timeout,
+        )
+        resp.raise_for_status()
         return resp.json()["message"]["content"]
 
     async def stream_chat(
@@ -88,20 +94,20 @@ class OllamaProvider:
 
         self._fire_hook(payload)
 
-        async with httpx.AsyncClient(timeout=timeout or self._default_timeout) as client:
-            async with client.stream(
-                "POST",
-                f"{self._base_url}/api/chat",
-                headers=self._headers(),
-                json=payload,
-            ) as resp:
-                resp.raise_for_status()
-                async for line in resp.aiter_lines():
-                    if not line:
-                        continue
-                    chunk_data = json.loads(line)
-                    token = chunk_data.get("message", {}).get("content", "")
-                    if token:
-                        yield token
-                    if chunk_data.get("done"):
-                        break
+        async with self._client.stream(
+            "POST",
+            f"{self._base_url}/api/chat",
+            headers=self._headers(),
+            json=payload,
+            timeout=timeout if timeout is not None else self._default_timeout,
+        ) as resp:
+            resp.raise_for_status()
+            async for line in resp.aiter_lines():
+                if not line:
+                    continue
+                chunk_data = json.loads(line)
+                token = chunk_data.get("message", {}).get("content", "")
+                if token:
+                    yield token
+                if chunk_data.get("done"):
+                    break
