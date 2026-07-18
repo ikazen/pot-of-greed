@@ -132,7 +132,8 @@ async def _search_complex(query: str, settings) -> list[Chunk]:
             keyword_search(sq.text, top_k=settings.retrieve_top_k),
         )
         return rrf_fuse(
-            vec_direct + vec_hyde,
+            vec_direct,
+            vec_hyde,
             kw,
             k=settings.rrf_k,
             top_n=settings.retrieve_top_k,
