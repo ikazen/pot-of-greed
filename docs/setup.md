@@ -7,7 +7,7 @@
 - Neo4j 5.x
 - 온프레미스 Ollama (`qwen3-embedding:8b`, `bge-reranker-v2-m3`)
 - Gemini API 키 (Google AI Studio)
-- Ollama Cloud 엔드포인트 + API 키 (glm-5.2 aux 모델용)
+- Ollama Cloud 엔드포인트 + API 키 (gpt-oss:20b aux 모델용)
 
 ## 설정
 
@@ -23,7 +23,7 @@ cp .env.example .env
 | `NEO4J_URI` / `NEO4J_PASSWORD` | Neo4j 연결 |
 | `OLLAMA_BASE_URL` | 온프레미스 Ollama (임베딩·리랭커) |
 | `GEMINI_API_KEY` | Gemini API 키 (draft/edit/reason) |
-| `OLLAMA_CLOUD_BASE_URL` / `OLLAMA_API_KEY` | Ollama Cloud (aux: glm-5.2) |
+| `OLLAMA_CLOUD_BASE_URL` / `OLLAMA_API_KEY` | Ollama Cloud (aux: gpt-oss:20b) |
 | `JWT_SECRET` | `openssl rand -hex 32` 로 생성 |
 | `AUTH_USERS` | `username:bcrypt_hash` 형식, 콤마 구분 |
 | `LAW_API_OC` | 법제처 OPEN API(open.law.go.kr) 신청 ID. 인제스트 스크립트 실행 전 필수 |

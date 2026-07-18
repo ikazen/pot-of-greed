@@ -81,6 +81,27 @@
 단, 4s는 README 목표치(2~4초) 상한 기반 기본값이며 `rarr_eval` 실측 재설정은 아직
 안 됨. 실측 후 재조정 필요.
 
+**수정(2026-07-18, #35)**: `rarr_eval.py`가 `init_pg`/`init_neo4j`를 호출한 적이
+없어 지금까지 "측정 예정"이 실제로 실행된 적이 없었다는 걸 확인 — DB 풀 미초기화로
+research 단계가 매번 `RuntimeError`를 내고 `run_rarr`의 최상위 예외처리에 조용히
+잡혀 degrade됐다(하니스는 에러 없이 "정상 종료"). 수정 후 처음 실행한 실측
+(`eval/results/20260718_164125.md`, 질의 12개)에서 `attribution_score=0.0`이
+전 질의·전 모드에서 나왔다 — decompose(aux LLM, `glm-5.2`)가 결정론적으로
+자기 타임아웃(4s 클램프 또는 15s 기본 상한)까지 가서 항상 실패하고, 남은 예산을
+전부 소진해 research 이하 전 단계가 빈 evidence로 반환되고 있었다.
+
+원인은 예산 크기가 아니라 **aux 모델(`glm-5.2`) 자체의 지연** — 짧은 프롬프트는
+4초대로 응답하지만, 실제 decompose 입력(수 KB 초안 + JSON 다항목 구조화 출력)에는
+19~29초가 걸렸다(재현 확인). 외부 벤치마크도 동일 계열(`glm-5.1`)이 유사 태스크에서
+평균 23.79초·JSON 생성 실패가 잦다고 보고해 교차 확인됨. 결정 N의 aux 모델을
+**`gpt-oss:20b`**로 교체(Ollama Cloud 카탈로그에서 가장 작은 모델, MoE 21B/활성 3.6B) —
+동일 태스크 실측 4.2~10.5초로 2~5배 개선(멀티테넌트 환경 특성상 편차 있음, 최대
+12초대 관측). `simple_mode_timeout_s`를 4s → **12s**로 재설정(decompose 전형적
+소요 10~11s + research/agreement 최소 버퍼). `complex_mode_timeout_s`(20s)는
+방향상 개선되나(decompose가 예산을 덜 먹으므로 CQGen/research 몫이 늘어남)
+Gemini 무료 티어 일일 할당량 소진으로 전체 파이프라인 재측정은 못 함 — 유지,
+추후 재검증 필요.
+
 ---
 
 ## J. 웹 UI 툴 선택
@@ -146,6 +167,16 @@ edit 후 재검증을 추가 — 최종 텍스트에서 ref를 재추출해 `ver
 | `draft` | 1 초안 생성 | gemini : gemini-2.5-flash |
 | `edit` | 5 최소 수정 | gemini : gemini-2.5-flash |
 | `reason` | 7 3층 법리 검토 | gemini : gemini-2.5-flash |
-| `aux` | 2 주장분해 · 3b CQGen · 4 agreement | ollama(cloud) : glm-5.2 |
+| `aux` | 2 주장분해 · 3b CQGen · 4 agreement | ollama(cloud) : gpt-oss:20b |
 
-**왜**: 사용자에게 보이는 산문(초안·edit·법리)은 만족도 검증된 Gemini, 내부 기계 판정(분해·질문생성·일치판정)은 빠르고 싼 glm-5.2로. aux는 주장·질문 단위 다수 병렬 호출이라 비용·지연이 가장 크게 누적 → 저가 모델로 분리해야 RARR 예산이 맞는다. 결정 L의 `make_llm_provider(provider=, model=)`가 이미 provider/model override를 지원하므로, role→(provider,model) 맵 + per-role 캐시(`get_llm_provider(role)`)만 추가하면 추상화를 깨지 않는다. glm-5.2 ollama 모델 태그는 Ollama Cloud 카탈로그에서 정확 명칭 확인 후 config에 고정. 역할별 모델은 config로 노출 — 실측 후 1·5·7을 상위 모델로 올릴 여지 유지.
+**왜**: 사용자에게 보이는 산문(초안·edit·법리)은 만족도 검증된 Gemini, 내부 기계 판정(분해·질문생성·일치판정)은 빠르고 싼 aux 모델로. aux는 주장·질문 단위 다수 병렬 호출이라 비용·지연이 가장 크게 누적 → 저가 모델로 분리해야 RARR 예산이 맞는다. 결정 L의 `make_llm_provider(provider=, model=)`가 이미 provider/model override를 지원하므로, role→(provider,model) 맵 + per-role 캐시(`get_llm_provider(role)`)만 추가하면 추상화를 깨지 않는다. 역할별 모델은 config로 노출 — 실측 후 1·5·7을 상위 모델로 올릴 여지 유지.
+
+**수정(2026-07-18, #35)**: aux 모델을 `glm-5.2` → `gpt-oss:20b`로 교체. 실측 결과
+`glm-5.2`가 decompose 같은 실제 크기 입력(수 KB + JSON 다항목 출력)에 19~29초를
+써서 어떤 타임아웃 예산으로도 완주가 불가능했다 — "저가 모델"이 아니라 "이 태스크에
+맞지 않는 모델"이었던 것. `gpt-oss:20b`는 Ollama Cloud 카탈로그에서 가장 작은
+모델(MoE, 21B 중 활성 3.6B)로 동일 태스크를 4.2~10.5초에 완주(JSON 유효성 유지) —
+비용 방향(저가 모델 유지 취지)과 지연 방향(실사용 가능한 속도) 둘 다 개선.
+Ollama Cloud 카탈로그는 자주 바뀌므로(같은 조사에서 `qwen3-coder-next`가 3일 전
+retired된 것도 확인) 모델 선정 시 블로그·문서보다 `GET /api/tags`로 실카탈로그를
+직접 확인하는 게 안전하다.
