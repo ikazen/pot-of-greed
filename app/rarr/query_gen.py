@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 
 from app.llm import get_llm_provider
 from app.rarr.types import Claim
@@ -12,15 +13,27 @@ _QGEN_SYSTEM = (
 )
 
 
-async def generate_questions(claim: Claim) -> list[str]:
-    """주장 검증을 위한 검색 질문 생성 (complex 모드 전용). 폴백: 주장 텍스트 1개."""
+async def generate_questions(claim: Claim, deadline: float | None = None) -> list[str]:
+    """주장 검증을 위한 검색 질문 생성 (complex 모드 전용). 폴백: 주장 텍스트 1개.
+
+    H1: deadline이 주어지면 남은 시간으로 timeout을 클램프하고, 이미 초과했으면
+    LLM 호출 없이 즉시 폴백한다.
+    """
+    if deadline is not None:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return [claim.text]
+        timeout = min(10.0, remaining)
+    else:
+        timeout = 10.0
+
     provider = get_llm_provider("aux")
     try:
         raw = await provider.chat(
             [{"role": "user", "content": claim.text}],
             system=_QGEN_SYSTEM,
             json_mode=True,
-            timeout=10.0,
+            timeout=timeout,
         )
         items = json.loads(raw.strip())
         questions = [q for q in items if isinstance(q, str) and q.strip()]
