@@ -70,6 +70,17 @@
 
 **측정 예정**: `python -m scripts.rarr_eval --mode both --report` 실행 후 p50/p95 실측치로 재설정(BON-208).
 
+**수정(2026-07-18)**: 원래 결정은 "draft 포함 20초 하나"를 전제했으나, draft 지연이
+검증 예산을 통째로 잠식해 모든 claim이 evidence 없이 반환되는 버그가 있었다. 예산
+모델을 재배치: `draft_timeout_s`(30s)로 draft가 독립 예산을 갖고, 검증 단계
+(decompose+research+agreement+edit) deadline은 draft *완료 후*부터 시작한다.
+
+**수정(2026-07-18, #14)**: 검증 단계 예산을 모드별로 추가 분리 — `simple_mode_timeout_s`
+(4s, RARR-lite는 CQGen/HyDE/2hop 생략이라 훨씬 가벼움)와 `complex_mode_timeout_s`
+(20s, 기존 유지). 결정 M이 예고했던 "단순모드 2~4초 목표는 실측 후 재설정"의 실행분 —
+단, 4s는 README 목표치(2~4초) 상한 기반 기본값이며 `rarr_eval` 실측 재설정은 아직
+안 됨. 실측 후 재조정 필요.
+
 ---
 
 ## J. 웹 UI 툴 선택

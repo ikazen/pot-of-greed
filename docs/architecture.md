@@ -67,7 +67,7 @@ Gemini가 코퍼스 제약 없이 자유 초안 생성 → 주장 분해 → 주
 7  3층 법리 (Gemini/reason, complex + 경고 있을 때만)
 ```
 
-### 단순 모드 (RARR-lite)
+### 단순 모드 (RARR-lite, 상한 4초)
 - 3b: CQGen 생략, 주장 텍스트 직접 단일 검색 (`_retrieve_simple`)
 - 7: 3층 법리 생략
 

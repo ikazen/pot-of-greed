@@ -26,6 +26,16 @@ JWT 발급. 고정 계정(`AUTH_USERS`) 사용자명/비밀번호로 로그인.
 
 각 값은 `"ok"` 또는 `"error"`.
 
+### GET /healthz
+
+무인증 헬스체크. `docker compose`의 컨테이너 헬스체크가 이 엔드포인트를 호출한다
+(`python3 -c "import urllib.request; ..."`, compose.yml).
+
+**인증**: 없음
+
+**응답**: `/health`와 동일한 바디 형식(`{"pg": "ok"|"error", "neo4j": "ok"|"error"}`).
+pg/neo4j 둘 다 `"ok"`면 status 200, 하나라도 `"error"`면 503.
+
 ### POST /chat
 
 질의응답 진입점. 전체 결과를 한 번에 반환.
@@ -73,8 +83,18 @@ JWT 발급. 고정 계정(`AUTH_USERS`) 사용자명/비밀번호로 로그인.
 
 **이벤트 흐름**
 
+`run_rarr`의 `on_progress` 콜백이 단계 완료마다 status 프레임을 흘린다(가짜
+스트리밍이 아니라 실제 진행상태) — 초기 프레임 외의 status 이벤트 수·문구는
+claim 개수에 따라 달라진다.
+
 ```
 data: {"status": "검토 중"}
+
+data: {"status": "초안 작성 완료"}
+data: {"status": "3개 주장 분해 완료"}
+data: {"status": "검증 1/3"}
+data: {"status": "검증 2/3"}
+data: {"status": "검증 3/3"}
 
 data: {"token": "법인세법 제"}
 data: {"token": "52조에 따르면..."}
@@ -87,7 +107,10 @@ data: [DONE]
 
 | 이벤트 | 설명 |
 |---|---|
-| `{"status": "검토 중"}` | RARR 파이프라인 시작 알림 |
+| `{"status": "검토 중"}` | 요청 접수 직후 즉시 전송되는 최초 상태 |
+| `{"status": "초안 작성 완료"}` | draft 단계 완료 |
+| `{"status": "N개 주장 분해 완료"}` | decompose 단계 완료, claim 개수 확정 |
+| `{"status": "검증 n/총"}` | claim 하나 처리(research+agreement+edit) 완료마다, 완료 순서대로 |
 | `{"token": "..."}` | 최종 답변 20자 단위 토큰 |
 | `{"sources": [...], "warnings": [...]}` | 파이프라인 완료 후 출처·경고 (tail 프레임) |
 | `[DONE]` | 스트림 종료 |

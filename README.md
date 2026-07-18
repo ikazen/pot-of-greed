@@ -14,11 +14,11 @@
 
 ```
 app/
-  api/        FastAPI 엔드포인트 (/chat, /chat/stream, /health)
+  api/        FastAPI 엔드포인트 (/chat, /chat/stream, /health, /healthz)
   auth/       JWT 인증, 고정 계정 로그인 (/auth/token)
   rarr/       RARR 파이프라인 (draft→decompose→research→agree→edit→attribution)
   retrieval/  임베딩·벡터·키워드검색·RRF·리랭킹·그래프확장
-  agent/      쿼리분해·충분성루프·근거검증
+  agent/      쿼리분해·충분성루프·도구라우팅
   router/     단순/복잡 모드 라우팅
   reasoning/  답변 빌더·법리 검토 (legal_reasoning_layer)
   llm/        LLM provider 추상화 (Gemini / Ollama Cloud)
