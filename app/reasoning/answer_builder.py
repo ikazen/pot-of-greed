@@ -37,105 +37,12 @@ class Warning:
     message: str
 
 
-@dataclass
-class Answer:
-    answer: str
-    sources: list[Source]
-    warnings: list[Warning]
-
-    def to_dict(self) -> dict:
-        return {
-            "answer": self.answer,
-            "sources": [vars(s) for s in self.sources],
-            "warnings": [vars(w) for w in self.warnings],
-        }
-
-
 _VALIDITY_FLAGS = {"overruled", "law_amended", "uncertain"}
 
 
 def _first_line(text: str, limit: int = 100) -> str:
     first = next((ln.strip() for ln in text.splitlines() if ln.strip()), "")
     return first[:limit] + ("..." if len(first) > limit else "")
-
-
-def _is_cited_article(raw_answer: str, meta: dict) -> bool:
-    law_name = meta.get("law_name", "")
-    article_no = meta.get("article_no", "")
-    if not law_name or not article_no:
-        return False
-    return (law_name + " " + article_no) in raw_answer or (law_name + article_no) in raw_answer
-
-
-def _is_cited_case(raw_answer: str, meta: dict) -> bool:
-    case_no = meta.get("case_no", "")
-    return bool(case_no) and case_no in raw_answer
-
-
-def build_answer(raw_answer: str, chunks: list[Chunk], limit: int = 3) -> Answer:
-    # 부모 컨텍스트 청크 제외 (LLM 컨텍스트 보강용 — 표시 불필요)
-    candidates = [c for c in chunks if c.meta.get("context_role") != "parent"]
-
-    # ref 기준 dedup (첫 등장 우선, rerank 순서상 score 높은 것이 먼저 위치)
-    seen_refs: set[str] = set()
-    deduped: list[Chunk] = []
-    for c in candidates:
-        if c.table == "article":
-            ref = (
-                f"{c.meta.get('law_name', '')} "
-                f"{c.meta.get('article_no', '')} "
-                f"{c.meta.get('clause_path', '') or ''}"
-            ).strip()
-        else:
-            ref = c.meta.get("case_no", c.chunk_id)
-        if ref not in seen_refs:
-            seen_refs.add(ref)
-            deduped.append(c)
-
-    # 본문 인용 판정 → cited 우선, 같은 그룹 내 score 내림차순
-    def _sort_key(c: Chunk) -> tuple[int, float]:
-        if c.table == "article":
-            cited = _is_cited_article(raw_answer, c.meta)
-        else:
-            cited = _is_cited_case(raw_answer, c.meta)
-        return (0 if cited else 1, -c.score)
-
-    selected = sorted(deduped, key=_sort_key)[:limit]
-
-    sources: list[Source] = []
-    warnings: list[Warning] = []
-
-    for chunk in selected:
-        if chunk.table == "article":
-            ref = (
-                f"{chunk.meta.get('law_name', '')} "
-                f"{chunk.meta.get('article_no', '')} "
-                f"{chunk.meta.get('clause_path', '') or ''}"
-            ).strip()
-            sources.append(Source(
-                type="article",
-                ref=ref,
-                chunk_id=chunk.chunk_id,
-                summary=_first_line(chunk.text),
-            ))
-        else:
-            ref = chunk.meta.get("case_no", chunk.chunk_id)
-            sources.append(Source(
-                type="case",
-                ref=ref,
-                chunk_id=chunk.chunk_id,
-                summary=_first_line(chunk.text),
-            ))
-            flag = chunk.meta.get("validity_flag")
-            if flag and flag in _VALIDITY_FLAGS:
-                warnings.append(Warning(
-                    chunk_id=chunk.chunk_id,
-                    ref=ref,
-                    validity_flag=flag,
-                    message=_build_warning_message(flag, chunk.meta),
-                ))
-
-    return Answer(answer=raw_answer, sources=sources, warnings=warnings)
 
 
 _LEGAL_REASONING_SYSTEM = (
