@@ -6,6 +6,63 @@ from app.retrieval.vector_search import Chunk
 
 
 @pytest.mark.asyncio
+async def test_promotion_score_uses_raw_vector_top1(monkeypatch):
+    """#11: 승격 판정은 벡터 top-1 코사인만 봐야 한다 — rerank/그래프 확장은 안 탄다."""
+    chunk = Chunk("art_income_14", "article", "본문", 0.73,
+                   {"law_name": "소득세법", "article_no": "제14조", "clause_path": None, "is_current": True})
+
+    async def fake_embed_query(text):
+        return [0.1] * 1024
+
+    calls = {"vector_search_top_k": None, "rerank_called": False, "expand_1hop_called": False}
+
+    async def fake_vector_search(embedding, top_k=30, only_current=True):
+        calls["vector_search_top_k"] = top_k
+        return [chunk]
+
+    async def fake_rerank(query, chunks, top_k=None):
+        calls["rerank_called"] = True
+        return chunks
+
+    async def fake_expand_1hop(chunk_ids):
+        calls["expand_1hop_called"] = True
+        return []
+
+    monkeypatch.setattr("app.api.chat.embed_query", fake_embed_query)
+    monkeypatch.setattr("app.api.chat.vector_search", fake_vector_search)
+    monkeypatch.setattr("app.api.chat.rerank", fake_rerank)
+    monkeypatch.setattr("app.api.chat.expand_1hop", fake_expand_1hop)
+
+    from app.api.chat import _promotion_score
+    from app.config import get_settings
+
+    score = await _promotion_score("소득세법 제14조?", get_settings())
+
+    assert score == 0.73
+    assert calls["vector_search_top_k"] == 1
+    assert calls["rerank_called"] is False
+    assert calls["expand_1hop_called"] is False
+
+
+@pytest.mark.asyncio
+async def test_promotion_score_empty_vector_results_returns_zero(monkeypatch):
+    async def fake_embed_query(text):
+        return [0.1] * 1024
+
+    async def fake_vector_search(embedding, top_k=30, only_current=True):
+        return []
+
+    monkeypatch.setattr("app.api.chat.embed_query", fake_embed_query)
+    monkeypatch.setattr("app.api.chat.vector_search", fake_vector_search)
+
+    from app.api.chat import _promotion_score
+    from app.config import get_settings
+
+    score = await _promotion_score("애매한 질의", get_settings())
+    assert score == 0.0
+
+
+@pytest.mark.asyncio
 async def test_retrieve_simple_hydrates_graph_only_chunk(monkeypatch):
     """#8: 검색 후보 풀(fused) 밖에서 1hop 그래프로만 발견된 chunk는
     드롭되지 않고 hydrate_by_ids로 본문이 채워져야 한다."""
