@@ -26,7 +26,7 @@ def _noop_run_rarr_parts(monkeypatch):
     async def fake_decompose_claims(text, deadline=None):
         return [Claim(text="주장1"), Claim(text="주장2")]
 
-    async def fake_research_claim(claim, mode, settings, deadline):
+    async def fake_research_claim(claim, mode, settings, deadline, search_semaphore=None):
         return [_make_evidence()]
 
     async def fake_verify_citations(refs):
@@ -100,7 +100,7 @@ async def test_run_rarr_builds_warnings_from_validity_flag(monkeypatch):
     async def fake_decompose_claims(text, deadline=None):
         return [Claim(text="주장")]
 
-    async def fake_research_claim(claim, mode, settings, deadline):
+    async def fake_research_claim(claim, mode, settings, deadline, search_semaphore=None):
         return [_make_evidence(validity_flag="overruled")]
 
     async def fake_verify_citations(refs):
@@ -138,7 +138,7 @@ async def test_run_rarr_tracks_hallucinated_refs(monkeypatch):
         from app.rarr.types import Claim
         return [Claim(text="소득세법 제999조 주장", cited_refs=["소득세법 제999조"])]
 
-    async def fake_research_claim(claim, mode, settings, deadline):
+    async def fake_research_claim(claim, mode, settings, deadline, search_semaphore=None):
         return [_make_evidence()]
 
     async def fake_verify_citations(refs):
@@ -180,7 +180,7 @@ async def test_run_rarr_max_claims_cap(monkeypatch):
 
     processed_claims = []
 
-    async def fake_research_claim(claim, mode, settings, deadline):
+    async def fake_research_claim(claim, mode, settings, deadline, search_semaphore=None):
         processed_claims.append(claim.text)
         return [_make_evidence()]
 
@@ -224,7 +224,7 @@ async def test_run_rarr_max_claims_cap_marks_deferred(monkeypatch):
     async def fake_decompose_claims(text, deadline=None):
         return [Claim(text=f"주장{i}") for i in range(4)]
 
-    async def fake_research_claim(claim, mode, settings, deadline):
+    async def fake_research_claim(claim, mode, settings, deadline, search_semaphore=None):
         return [_make_evidence()]
 
     async def fake_verify_citations(refs):
@@ -282,7 +282,7 @@ async def test_run_rarr_removes_hallucination_newly_introduced_by_edit(monkeypat
     async def fake_decompose_claims(text, deadline=None):
         return [Claim(text="소득세법 제89조에 따라 과세된다.", cited_refs=["소득세법 제89조"])]
 
-    async def fake_research_claim(claim, mode, settings, deadline):
+    async def fake_research_claim(claim, mode, settings, deadline, search_semaphore=None):
         return [_make_evidence()]
 
     async def fake_verify_citations(refs):
@@ -328,7 +328,7 @@ async def test_run_rarr_removes_hallucination_edit_failed_to_correct(monkeypatch
     async def fake_decompose_claims(text, deadline=None):
         return [Claim(text="소득세법 제999조 주장", cited_refs=["소득세법 제999조"])]
 
-    async def fake_research_claim(claim, mode, settings, deadline):
+    async def fake_research_claim(claim, mode, settings, deadline, search_semaphore=None):
         return [_make_evidence()]
 
     async def fake_verify_citations(refs):
@@ -375,7 +375,7 @@ async def test_process_claim_deadline_exceeded_degrades_without_llm_calls(monkey
     agreement_calls = []
     edit_calls = []
 
-    async def fake_research_claim(claim, mode, settings, deadline):
+    async def fake_research_claim(claim, mode, settings, deadline, search_semaphore=None):
         return [_make_evidence()]
 
     async def fake_verify_citations(refs):
@@ -439,7 +439,7 @@ async def test_run_rarr_scrubs_hallucinated_ref_from_draft_answer(monkeypatch):
             cited_refs=["소득세법 제89조", "2099두99999"],
         )]
 
-    async def fake_research_claim(claim, mode, settings, deadline):
+    async def fake_research_claim(claim, mode, settings, deadline, search_semaphore=None):
         return [_make_evidence()]
 
     async def fake_verify_citations(refs):
@@ -480,7 +480,7 @@ async def test_run_rarr_unverified_claims_get_aggregate_warning(monkeypatch):
     async def fake_decompose_claims(text, deadline=None):
         return [Claim(text="주장1"), Claim(text="주장2")]
 
-    async def fake_research_claim(claim, mode, settings, deadline):
+    async def fake_research_claim(claim, mode, settings, deadline, search_semaphore=None):
         return []  # 근거 전무
 
     async def fake_verify_citations(refs):
@@ -530,7 +530,7 @@ async def test_process_claim_corrected_requires_hallucinated_ref_removed_from_fi
 
     claim = Claim(text="소득세법 제999조 주장", cited_refs=["소득세법 제999조"])
 
-    async def fake_research_claim(c, mode, settings, deadline):
+    async def fake_research_claim(c, mode, settings, deadline, search_semaphore=None):
         return [_make_evidence()]
 
     verify_calls = []
@@ -584,7 +584,7 @@ async def test_run_rarr_sources_sorted_by_score_descending(monkeypatch):
     async def fake_decompose_claims(text, deadline=None):
         return [Claim(text="주장1"), Claim(text="주장2")]
 
-    async def fake_research_claim(claim, mode, settings, deadline):
+    async def fake_research_claim(claim, mode, settings, deadline, search_semaphore=None):
         if claim.text == "주장1":
             return [_scored_evidence("low", 0.3)]
         return [_scored_evidence("high", 0.95)]
@@ -630,7 +630,7 @@ async def test_run_rarr_bounds_claim_concurrency(monkeypatch):
     current = 0
     peak = 0
 
-    async def fake_process_claim(claim, mode, settings, deadline):
+    async def fake_process_claim(claim, mode, settings, deadline, search_semaphore=None):
         nonlocal current, peak
         current += 1
         peak = max(peak, current)
@@ -648,6 +648,85 @@ async def test_run_rarr_bounds_claim_concurrency(monkeypatch):
     monkeypatch.setattr(settings, "rarr_max_concurrency", 2)
 
     await run_rarr("질의", "simple", settings)
+    assert peak <= 2
+
+
+@pytest.mark.asyncio
+async def test_run_rarr_bounds_total_search_concurrency_across_claims(monkeypatch):
+    """#15: claim 세마포어와 search 세마포어가 중첩되지 않고, 전체 서브쿼리 검색
+    동시 발사 수가 claim 수와 무관하게 rarr_max_concurrency로 캡핑된다.
+
+    이전 버그: claim 세마포어(N) x _research_complex가 claim마다 새로 만드는
+    question 세마포어(N)가 중첩돼 최악 N^2. 이 테스트는 4 claim x 3 question(=12
+    총 검색)을 rarr_max_concurrency=2로 돌려 실제 동시 검색 피크가 2를 넘지
+    않는지(구버전이라면 최악 4까지 가능) 확인한다.
+    """
+    import asyncio
+    import app.rarr.pipeline as pipeline_mod
+    from app.rarr.agreement import AgreementResult
+
+    async def fake_draft(query, timeout=None):
+        return "초안"
+
+    async def fake_decompose_claims(text, deadline=None):
+        return [Claim(text=f"주장{i}") for i in range(4)]
+
+    async def fake_verify_citations(refs):
+        return {}
+
+    async def fake_check_agreement(claim, evidence, deadline=None):
+        return AgreementResult(agree=True, supporting=evidence)
+
+    async def fake_edit_claim(claim, agreement, evidence, max_evidence=5, deadline=None):
+        return claim.text, evidence, []
+
+    monkeypatch.setattr(pipeline_mod, "draft", fake_draft)
+    monkeypatch.setattr(pipeline_mod, "decompose_claims", fake_decompose_claims)
+    monkeypatch.setattr(pipeline_mod, "verify_citations", fake_verify_citations)
+    monkeypatch.setattr(pipeline_mod, "check_agreement", fake_check_agreement)
+    monkeypatch.setattr(pipeline_mod, "edit_claim", fake_edit_claim)
+
+    async def fake_generate_questions(claim, deadline=None):
+        return ["q1", "q2", "q3"]
+
+    current = 0
+    peak = 0
+
+    async def fake_search_complex(query, settings):
+        nonlocal current, peak
+        current += 1
+        peak = max(peak, current)
+        await asyncio.sleep(0.01)
+        current -= 1
+        return []
+
+    async def fake_rerank(query, chunks, top_k):
+        return []
+
+    async def fake_expand_2hop(ids):
+        return []
+
+    async def fake_expand_to_parents(chunks):
+        return []
+
+    import app.rarr.query_gen as qg_mod
+    import app.api.chat as chat_mod
+    from app.retrieval import reranker as reranker_mod
+    from app.retrieval import graph_expand as ge_mod
+    from app.retrieval import context_expand as ce_mod
+
+    monkeypatch.setattr(qg_mod, "generate_questions", fake_generate_questions)
+    monkeypatch.setattr(chat_mod, "_search_complex", fake_search_complex)
+    monkeypatch.setattr(reranker_mod, "rerank", fake_rerank)
+    monkeypatch.setattr(ge_mod, "expand_2hop", fake_expand_2hop)
+    monkeypatch.setattr(ce_mod, "expand_to_parents", fake_expand_to_parents)
+
+    from app.config import get_settings
+    from app.rarr.pipeline import run_rarr
+    settings = get_settings()
+    monkeypatch.setattr(settings, "rarr_max_concurrency", 2)
+
+    await run_rarr("질의", "complex", settings)
     assert peak <= 2
 
 

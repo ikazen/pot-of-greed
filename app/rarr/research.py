@@ -26,7 +26,12 @@ async def _research_simple(claim: Claim, settings) -> list[Chunk]:
     return await _retrieve_simple(claim.text, settings)
 
 
-async def _research_complex(claim: Claim, settings, deadline: float) -> list[Chunk]:
+async def _research_complex(
+    claim: Claim,
+    settings,
+    deadline: float,
+    search_semaphore: asyncio.Semaphore | None = None,
+) -> list[Chunk]:
     from app.api.chat import _search_complex
     from app.retrieval.reranker import rerank
     from app.retrieval.graph_expand import expand_2hop, filter_by_transaction_date
@@ -39,9 +44,12 @@ async def _research_complex(claim: Claim, settings, deadline: float) -> list[Chu
     if settings.rarr_questions_per_claim:
         questions = questions[:settings.rarr_questions_per_claim]
 
-    # M4: question마다 검색을 무제한 gather하면 claim 수 x question 수만큼 동시
-    # DB 커넥션이 발사돼 asyncpg 풀을 고갈시킬 수 있다. semaphore로 동시 발사 수를 제한.
-    semaphore = asyncio.Semaphore(settings.rarr_max_concurrency)
+    # #15: 이 함수는 claim마다 호출되므로, 매번 새 세마포어를 만들면 claim 동시성(N)
+    # x 이 세마포어(N)가 중첩돼 최악 N^2개 서브쿼리 검색이 동시 발사된다(M4 원 버그).
+    # run_rarr가 만든 하나의 search_semaphore를 claim들 사이에서 공유해 "전체 동시
+    # 서브쿼리 검색 수"를 rarr_max_concurrency로 단일 상한한다. 직접 호출(테스트 등)
+    # 시엔 None 폴백으로 이 함수 단독 동작도 유지.
+    semaphore = search_semaphore or asyncio.Semaphore(settings.rarr_max_concurrency)
 
     async def _search_one(q: str) -> list[Chunk]:
         if time.monotonic() > deadline:
@@ -86,6 +94,7 @@ async def research_claim(
     mode: str,
     settings,
     deadline: float,
+    search_semaphore: asyncio.Semaphore | None = None,
 ) -> list[Evidence]:
     """주장 하나에 대해 코퍼스를 검색해 Evidence 목록을 반환.
 
@@ -97,7 +106,7 @@ async def research_claim(
         return []
 
     if mode == "complex":
-        chunks = await _research_complex(claim, settings, deadline)
+        chunks = await _research_complex(claim, settings, deadline, search_semaphore)
     else:
         chunks = await _research_simple(claim, settings)
 
