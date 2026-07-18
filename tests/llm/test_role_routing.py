@@ -60,7 +60,7 @@ def test_reason_role_returns_gemini(monkeypatch):
 
 def test_aux_role_returns_ollama(monkeypatch):
     monkeypatch.setenv("RARR_AUX_PROVIDER", "ollama")
-    monkeypatch.setenv("RARR_AUX_MODEL", "glm-5.2")
+    monkeypatch.setenv("RARR_AUX_MODEL", "gpt-oss:20b")
     monkeypatch.setenv("OLLAMA_CLOUD_BASE_URL", "https://ollama.example.com")
     _clear()
     provider = get_llm_provider("aux")
@@ -69,12 +69,12 @@ def test_aux_role_returns_ollama(monkeypatch):
 
 def test_aux_model_tag(monkeypatch):
     monkeypatch.setenv("RARR_AUX_PROVIDER", "ollama")
-    monkeypatch.setenv("RARR_AUX_MODEL", "glm-5.2")
+    monkeypatch.setenv("RARR_AUX_MODEL", "gpt-oss:20b")
     monkeypatch.setenv("OLLAMA_CLOUD_BASE_URL", "https://ollama.example.com")
     _clear()
     provider = get_llm_provider("aux")
     assert isinstance(provider, OllamaProvider)
-    assert provider._model == "glm-5.2"
+    assert provider._model == "gpt-oss:20b"
 
 
 def test_per_role_cache(monkeypatch):

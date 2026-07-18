@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     rarr_reason_provider: str = "gemini"
     rarr_reason_model: str = "gemini-2.5-flash"
     rarr_aux_provider: str = "ollama"
-    rarr_aux_model: str = "glm-5.2"
+    rarr_aux_model: str = "gpt-oss:20b"
 
     # RARR 튜닝 노브 (0 = 무제한)
     rarr_max_claims: int = 0
