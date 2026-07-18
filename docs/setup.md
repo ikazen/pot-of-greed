@@ -55,6 +55,8 @@ docker compose up -d
 ```
 
 api 컨테이너(`pot-of-greed-api`, :8000) + ui 컨테이너(`pot-of-greed-ui`)가 nexus 네트워크에 연결.
+헬스체크는 무인증 `GET /healthz`를 호출한다(pg/neo4j ping 실패 시 503) — 컨테이너가
+unhealthy로 뜨면 이 엔드포인트로 직접 원인 확인.
 
 ### 로컬 개발
 
