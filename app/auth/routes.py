@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 
@@ -12,7 +14,11 @@ async def login(
     form: OAuth2PasswordRequestForm = Depends(),
     settings: Settings = Depends(get_settings),
 ) -> dict:
-    if not authenticate_user(form.username, form.password, settings):
+    # bcrypt.checkpw는 동기 호출이라 이벤트 루프를 블록한다 — to_thread로 회피(#10).
+    authenticated = await asyncio.to_thread(
+        authenticate_user, form.username, form.password, settings
+    )
+    if not authenticated:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
