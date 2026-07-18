@@ -300,7 +300,6 @@ app/
     decompose.py           # 하위질의 분해
     tool_router.py         # 하위질의 -> 도구 선택
     sufficiency.py         # 충분성 평가 루프
-    grounding_check.py     # 근거 검증 게이트 (F2 seam, 결정 F — RARR agreement.py로 대체돼 현재 미호출)
   rarr/
     draft.py               # 1 초안 생성 (Gemini)
     claims.py               # 2 주장 분해 + ref 파싱
