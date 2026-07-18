@@ -116,3 +116,20 @@ async def test_chat_stream_contains_tokens_and_tail(async_client, patch_retrieva
     assert tail_frames    # sources/warnings
     assert "sources" in tail_frames[-1]
     assert "warnings" in tail_frames[-1]
+
+
+@pytest.mark.asyncio
+async def test_chat_stream_reports_progress_events(async_client, patch_retrieval, patch_rarr):
+    """#13: 초기 "검토 중" 외에 run_rarr의 on_progress로 흘러온 실질 진행상태가
+    최소 1개 더 있어야 한다 — 이전엔 완료까지 침묵하는 가짜 스트리밍이었다."""
+    resp = await async_client.post("/chat/stream", json={"query": "부가가치세?"})
+    lines = [ln for ln in resp.text.splitlines() if ln.startswith("data:")]
+    payloads = [
+        json.loads(ln[len("data:"):].strip())
+        for ln in lines
+        if ln[len("data:"):].strip() != "[DONE]"
+    ]
+    status_messages = [p["status"] for p in payloads if "status" in p]
+
+    assert "검토 중" in status_messages
+    assert len(status_messages) >= 2  # 초기 상태 + on_progress로 흘러온 진행상태 최소 1개

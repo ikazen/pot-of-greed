@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from app.rarr.agreement import check_agreement
@@ -149,7 +150,12 @@ async def _process_claim(
     )
 
 
-async def run_rarr(query: str, mode: str, settings) -> RarrResult:
+async def run_rarr(
+    query: str,
+    mode: str,
+    settings,
+    on_progress: Callable[[str], None] | None = None,
+) -> RarrResult:
     """RARR 파이프라인 전체 실행.
 
     실패·타임아웃 시 순수 초안 + [미검증] 배너로 degrade.
@@ -161,7 +167,15 @@ async def run_rarr(query: str, mode: str, settings) -> RarrResult:
 
     검증 단계 예산은 mode별로 분리(#14) — simple(RARR-lite)은 CQGen/HyDE/2hop을
     생략해 훨씬 가벼우므로 complex와 같은 20초를 쓸 필요가 없다.
+
+    on_progress(#13): draft 완료·claim 분해 완료·claim 검증 완료마다 호출되는
+    선택적 콜백(app.llm.ollama의 on_request 훅과 동일 패턴) — /chat/stream이
+    이걸로 SSE 진행상태 이벤트를 흘린다. None이면 무시.
     """
+    def _progress(message: str) -> None:
+        if on_progress:
+            on_progress(message)
+
     # M5: draft 실패는 그 자체로 답변 불가 상태이므로 별도 처리. 아래 파이프라인
     # 단계 실패 시의 degrade 경로가 이 draft_text를 재사용해 draft를 두 번 호출하지 않는다.
     try:
@@ -175,6 +189,8 @@ async def run_rarr(query: str, mode: str, settings) -> RarrResult:
             attributions=[],
         )
 
+    _progress("초안 작성 완료")
+
     budget = settings.simple_mode_timeout_s if mode == "simple" else settings.complex_mode_timeout_s
     deadline = time.monotonic() + budget
 
@@ -183,6 +199,8 @@ async def run_rarr(query: str, mode: str, settings) -> RarrResult:
         cap = settings.rarr_max_claims
         verified_claims = claims[:cap] if cap else claims
         deferred_claims = claims[cap:] if cap else []
+
+        _progress(f"{len(verified_claims)}개 주장 분해 완료")
 
         # #15: claim 동시성과 서브쿼리 검색 동시성을 별도 세마포어로 분리한다.
         # 같은 세마포어 인스턴스를 두 레벨에서 재사용하면(claim이 outer permit을
@@ -194,9 +212,16 @@ async def run_rarr(query: str, mode: str, settings) -> RarrResult:
         claim_semaphore = asyncio.Semaphore(settings.rarr_max_concurrency)
         search_semaphore = asyncio.Semaphore(settings.rarr_max_concurrency)
 
+        completed = 0
+        total = len(verified_claims)
+
         async def _bounded_process(c: Claim) -> AttributionReport:
+            nonlocal completed
             async with claim_semaphore:
-                return await _process_claim(c, mode, settings, deadline, search_semaphore)
+                result = await _process_claim(c, mode, settings, deadline, search_semaphore)
+            completed += 1
+            _progress(f"검증 {completed}/{total}")
+            return result
 
         reports = await asyncio.gather(
             *[_bounded_process(c) for c in verified_claims]

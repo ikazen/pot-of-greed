@@ -187,7 +187,9 @@ def patch_rarr(monkeypatch):
         summary="과세표준의 계산...",
     )
 
-    async def fake_run_rarr(query, mode, settings):
+    async def fake_run_rarr(query, mode, settings, on_progress=None):
+        if on_progress:
+            on_progress("검증 완료")
         answer = _COMPLEX_ANSWER if mode == "complex" else _SIMPLE_ANSWER
         return RarrResult(answer=answer, sources=[_SAMPLE_SOURCE], warnings=[], attributions=[])
 

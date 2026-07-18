@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from typing import Literal
@@ -77,7 +78,27 @@ async def chat_stream(
     async def _event_stream():
         yield f"data: {json.dumps({'status': '검토 중'})}\n\n"
 
-        result = await run_rarr(req.query, mode, settings)
+        # #13: run_rarr을 백그라운드 task로 돌리고, on_progress 콜백이 큐에 쌓는
+        # 진행상태(draft 완료/분해 완료/검증 n/총)를 폴링해 중간에 흘린다 —
+        # 이전엔 "검토 중" 한 줄 후 완료까지 침묵하는 가짜 스트리밍이었다.
+        queue: asyncio.Queue[str] = asyncio.Queue()
+
+        def on_progress(status: str) -> None:
+            queue.put_nowait(status)
+
+        task = asyncio.create_task(
+            run_rarr(req.query, mode, settings, on_progress=on_progress)
+        )
+        while not task.done():
+            try:
+                status = await asyncio.wait_for(queue.get(), timeout=0.5)
+                yield f"data: {json.dumps({'status': status})}\n\n"
+            except asyncio.TimeoutError:
+                continue
+        while not queue.empty():
+            yield f"data: {json.dumps({'status': queue.get_nowait()})}\n\n"
+
+        result = task.result()
 
         # 최종 답변 청크 단위 스트리밍
         chunk_size = 20

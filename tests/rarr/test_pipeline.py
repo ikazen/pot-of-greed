@@ -818,3 +818,54 @@ async def test_run_rarr_uses_complex_mode_timeout_for_complex(monkeypatch):
 
     remaining = captured_deadline["value"] - t0
     assert 19.5 <= remaining <= 20.5
+
+
+# ---------------------------------------------------------------------------
+# #13 — on_progress 콜백 (draft 완료 / 분해 완료 / claim별 검증 진행)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_run_rarr_on_progress_reports_draft_decompose_and_claims(monkeypatch):
+    _noop_run_rarr_parts(monkeypatch)  # fake_decompose_claims는 주장 2개 반환
+
+    events: list[str] = []
+
+    from app.config import get_settings
+    from app.rarr.pipeline import run_rarr
+    await run_rarr("질의", "simple", get_settings(), on_progress=events.append)
+
+    assert events[0] == "초안 작성 완료"
+    assert events[1] == "2개 주장 분해 완료"
+    # claim 2개 처리 완료 이벤트가 순서대로(1/2, 2/2) 뒤따라야 함
+    assert "검증 1/2" in events
+    assert "검증 2/2" in events
+    assert events.index("검증 1/2") < events.index("검증 2/2")
+
+
+@pytest.mark.asyncio
+async def test_run_rarr_no_on_progress_is_noop(monkeypatch):
+    """on_progress 미전달 시 아무 콜백도 안 걸리고 정상 동작(하위호환)."""
+    _noop_run_rarr_parts(monkeypatch)
+
+    from app.config import get_settings
+    from app.rarr.pipeline import run_rarr
+    result = await run_rarr("질의", "simple", get_settings())
+    assert isinstance(result, RarrResult)
+
+
+@pytest.mark.asyncio
+async def test_run_rarr_on_progress_not_called_on_draft_failure(monkeypatch):
+    import app.rarr.pipeline as pipeline_mod
+
+    async def failing_draft(query, timeout=None):
+        raise RuntimeError("LLM error")
+
+    monkeypatch.setattr(pipeline_mod, "draft", failing_draft)
+
+    events: list[str] = []
+
+    from app.config import get_settings
+    from app.rarr.pipeline import run_rarr
+    await run_rarr("질의", "simple", get_settings(), on_progress=events.append)
+
+    assert events == []
