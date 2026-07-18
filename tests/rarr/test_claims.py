@@ -40,6 +40,26 @@ def test_extract_refs_empty_when_no_refs():
     assert _extract_refs("보유기간 2년 이상이 필요하다.") == []
 
 
+def test_extract_refs_ignores_date_expressions():
+    """#6: 날짜 표현("2018년6월15일")이 판례번호로 오탐되어선 안 된다."""
+    from app.rarr.claims import _extract_refs
+    text = "양도일이 2018년6월15일인 경우 소득세법 제89조가 적용된다."
+    refs = _extract_refs(text)
+    assert "소득세법 제89조" in refs
+    assert "2018년6" not in refs
+    assert not any(r.startswith("2018년") for r in refs)
+
+
+def test_extract_refs_various_case_type_codes():
+    """사건부호 화이트리스트가 실무에서 흔한 부호들을 계속 인식하는지 확인."""
+    from app.rarr.claims import _extract_refs
+    text = "2015다12345, 2020도6789, 2019헌가1 판결을 참고하라."
+    refs = _extract_refs(text)
+    assert "2015다12345" in refs
+    assert "2020도6789" in refs
+    assert "2019헌가1" in refs
+
+
 @pytest.mark.asyncio
 async def test_decompose_claims_parses_json(monkeypatch):
     from app.rarr.claims import decompose_claims
