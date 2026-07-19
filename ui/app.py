@@ -39,6 +39,7 @@ async def on_message(message: cl.Message):
 
     sources_data: list[dict] = []
     warnings_data: list[dict] = []
+    debug_data: dict | None = None
 
     async with httpx.AsyncClient(timeout=90) as client:
         async with client.stream(
@@ -63,6 +64,7 @@ async def on_message(message: cl.Message):
                 elif "sources" in data:
                     sources_data = data["sources"]
                     warnings_data = data["warnings"]
+                    debug_data = data.get("debug")
 
     extra: list[str] = []
 
@@ -81,6 +83,40 @@ async def on_message(message: cl.Message):
                 lines.append(f"  {summary}")
         extra.append("\n".join(lines))
 
+    if debug_data:
+        extra.append(_render_debug(debug_data))
+
     if extra:
         msg.content += "\n\n" + "\n\n".join(extra)
         await msg.update()
+
+
+def _render_debug(debug: dict) -> str:
+    """RARR 파이프라인 수정 내역 — 디버그 모드(DEBUG_PIPELINE=true)일 때만 전달됨."""
+    lines = ["<details>", "<summary>파이프라인 수정 내역 (디버그)</summary>", ""]
+    lines.append(
+        f"mode={debug.get('mode')} claims={debug.get('claims_total', 0)} "
+        f"deferred={debug.get('deferred_count', 0)} "
+        f"법리검토={'적용' if debug.get('legal_reasoning_applied') else '미적용'}"
+    )
+    scrubbed = debug.get("scrubbed_refs") or []
+    if scrubbed:
+        lines.append(f"삭제된 환각 인용: {', '.join(scrubbed)}")
+
+    for i, claim in enumerate(debug.get("claims", []), start=1):
+        lines.append(f"\n**주장 {i}**")
+        lines.append(f"- 원문: {claim['original']}")
+        verdict = "일치" if claim["agree"] else "불일치"
+        reason = claim.get("agreement_reason") or ""
+        lines.append(f"- 판정: {verdict}" + (f" ({reason})" if reason else ""))
+        if claim.get("revised"):
+            lines.append(f"- 수정: {claim['revised']}")
+        if claim.get("corrections"):
+            lines.append(f"- 정정: {', '.join(claim['corrections'])}")
+        if claim.get("removed_refs"):
+            lines.append(f"- 삭제된 인용: {', '.join(claim['removed_refs'])}")
+        refs = claim.get("evidence_refs") or []
+        lines.append(f"- 근거({claim.get('evidence_count', 0)}): {', '.join(refs) if refs else '없음'}")
+
+    lines.append("</details>")
+    return "\n".join(lines)

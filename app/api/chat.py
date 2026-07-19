@@ -37,6 +37,7 @@ class ChatResponse(BaseModel):
     sources: list[dict]
     warnings: list[dict]
     elapsed_ms: int
+    debug: dict | None = None
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -60,6 +61,7 @@ async def chat(
         sources=[vars(s) for s in result.sources],
         warnings=[vars(w) for w in result.warnings],
         elapsed_ms=elapsed,
+        debug=result.debug,
     )
 
 
@@ -110,6 +112,8 @@ async def chat_stream(
             "sources": [vars(s) for s in result.sources],
             "warnings": [vars(w) for w in result.warnings],
         }
+        if result.debug is not None:
+            tail["debug"] = result.debug
         yield f"data: {json.dumps(tail)}\n\n"
         yield "data: [DONE]\n\n"
 

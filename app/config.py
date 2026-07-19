@@ -69,6 +69,9 @@ class Settings(BaseSettings):
     # logging
     log_level: str = "INFO"
 
+    # 디버그: RARR 단계별 수정 내역을 채팅 응답에 포함 (기동 시 ON/OFF)
+    debug_pipeline: bool = False
+
     # law.go.kr OPEN API (법제처 국가법령정보 공동활용)
     law_api_oc: str = ""
     law_api_base_url: str = "http://www.law.go.kr/DRF"

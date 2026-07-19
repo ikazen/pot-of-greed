@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from app.rarr.agreement import check_agreement
 from app.rarr.citation import verify_citations
 from app.rarr.claims import _extract_refs, decompose_claims
+from app.rarr.debug import build_debug_trace
 from app.rarr.draft import draft
 from app.rarr.edit import edit_claim
 from app.rarr.research import research_claim
@@ -31,6 +32,7 @@ class RarrResult:
     sources: list[Source]
     warnings: list[Warning]
     attributions: list[AttributionReport]
+    debug: dict | None = None
 
 
 def _evidence_type(ev: Evidence) -> str:
@@ -158,6 +160,7 @@ async def _process_claim(
         claim=claim,
         evidence=used_evidence,
         agree=agreement.agree,
+        agreement_reason=agreement.reason,
         revised_text=revised_text,
         corrections=corrections,
         hallucinated_refs=hallucinated_refs,
@@ -214,6 +217,7 @@ async def run_rarr(
             sources=[],
             warnings=[],
             attributions=[],
+            debug={"mode": mode, "outcome": "draft_failed", "claims": []} if settings.debug_pipeline else None,
         )
     draft_ms = int((time.monotonic() - t_draft) * 1000)
     logger.info(f"RARR stage=draft run_id={run_id} mode={mode} elapsed_ms={draft_ms}")
@@ -297,6 +301,7 @@ async def run_rarr(
             ))
 
         # 3층 법리 (complex 모드 + 경고 있을 때만)
+        legal_reasoning_applied = False
         if mode == "complex" and warnings:
             from app.reasoning.answer_builder import legal_reasoning_layer
             from app.retrieval.vector_search import Chunk
@@ -318,15 +323,27 @@ async def run_rarr(
             logger.info(f"RARR stage=legal_reasoning run_id={run_id} mode={mode} elapsed_ms={reasoning_ms}")
             if reasoning:
                 final_answer += f"\n\n## 법리 검토\n{reasoning}"
+                legal_reasoning_applied = True
 
         elapsed_ms = int((time.monotonic() - t_total) * 1000)
         logger.info(f"RARR stage=total run_id={run_id} mode={mode} elapsed_ms={elapsed_ms} outcome=success")
+
+        debug = None
+        if settings.debug_pipeline:
+            debug = build_debug_trace(
+                list(reports),
+                mode=mode,
+                deferred_count=len(deferred_claims),
+                hallucinated_all=hallucinated_all,
+                legal_reasoning_applied=legal_reasoning_applied,
+            )
 
         return RarrResult(
             answer=final_answer,
             sources=sources,
             warnings=warnings,
             attributions=list(reports),
+            debug=debug,
         )
 
     except Exception:
@@ -338,4 +355,5 @@ async def run_rarr(
             sources=[],
             warnings=[],
             attributions=[],
+            debug={"mode": mode, "outcome": "degrade", "claims": []} if settings.debug_pipeline else None,
         )

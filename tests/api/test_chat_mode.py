@@ -119,6 +119,47 @@ async def test_chat_stream_contains_tokens_and_tail(async_client, patch_retrieva
 
 
 @pytest.mark.asyncio
+async def test_chat_stream_tail_omits_debug_when_off(async_client, patch_retrieval, patch_rarr):
+    """debug_pipeline=False(기본값)면 tail 이벤트에 debug 키가 아예 없어야 한다."""
+    resp = await async_client.post("/chat/stream", json={"query": "부가가치세?"})
+    lines = [ln for ln in resp.text.splitlines() if ln.startswith("data:")]
+    payloads = [
+        json.loads(ln[len("data:"):].strip())
+        for ln in lines
+        if ln[len("data:"):].strip() != "[DONE]"
+    ]
+    tail = next(p for p in payloads if "sources" in p)
+    assert "debug" not in tail
+
+
+@pytest.mark.asyncio
+async def test_chat_stream_tail_includes_debug_when_on(async_client, patch_retrieval, monkeypatch):
+    """debug_pipeline=True로 생성된 RarrResult.debug가 tail 이벤트에 그대로 실린다."""
+    from app.rarr.pipeline import RarrResult
+
+    async def fake_run_rarr(query, mode, settings, on_progress=None):
+        return RarrResult(
+            answer="답변",
+            sources=[],
+            warnings=[],
+            attributions=[],
+            debug={"mode": mode, "claims_total": 0, "claims": []},
+        )
+
+    monkeypatch.setattr("app.api.chat.run_rarr", fake_run_rarr)
+
+    resp = await async_client.post("/chat/stream", json={"query": "부가가치세?"})
+    lines = [ln for ln in resp.text.splitlines() if ln.startswith("data:")]
+    payloads = [
+        json.loads(ln[len("data:"):].strip())
+        for ln in lines
+        if ln[len("data:"):].strip() != "[DONE]"
+    ]
+    tail = next(p for p in payloads if "sources" in p)
+    assert tail["debug"]["claims_total"] == 0
+
+
+@pytest.mark.asyncio
 async def test_chat_stream_reports_progress_events(async_client, patch_retrieval, patch_rarr):
     """#13: 초기 "검토 중" 외에 run_rarr의 on_progress로 흘러온 실질 진행상태가
     최소 1개 더 있어야 한다 — 이전엔 완료까지 침묵하는 가짜 스트리밍이었다."""
