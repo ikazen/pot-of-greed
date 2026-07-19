@@ -27,6 +27,7 @@ class AttributionReport:
     claim: Claim
     evidence: list[Evidence] = field(default_factory=list)
     agree: bool = True
+    agreement_reason: str = ""
     revised_text: str = ""
     corrections: list[str] = field(default_factory=list)
     hallucinated_refs: list[str] = field(default_factory=list)

@@ -911,6 +911,77 @@ async def test_run_rarr_logs_stage_timings_with_consistent_run_id(monkeypatch, c
         assert "total_ms=" in line
 
 
+# ---------------------------------------------------------------------------
+# 디버그 모드 — settings.debug_pipeline ON일 때만 RarrResult.debug 채워짐
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_run_rarr_debug_off_by_default(monkeypatch):
+    _noop_run_rarr_parts(monkeypatch)
+
+    from app.config import get_settings
+    from app.rarr.pipeline import run_rarr
+    result = await run_rarr("질의", "simple", get_settings())
+    assert result.debug is None
+
+
+@pytest.mark.asyncio
+async def test_run_rarr_debug_on_includes_claim_trace(monkeypatch):
+    """debug_pipeline=True면 주장별 원문/판정/수정 내역이 채워지고, 변경 없는
+    주장의 revised는 None(diff 요약 원칙: 바뀐 것만 표시)이어야 한다."""
+    import app.rarr.pipeline as pipeline_mod
+    from app.rarr.agreement import AgreementResult
+
+    async def fake_draft(query, timeout=None):
+        return "초안"
+
+    async def fake_decompose_claims(text, deadline=None):
+        return [Claim(text="주장1"), Claim(text="소득세법 제999조 주장", cited_refs=["소득세법 제999조"])]
+
+    async def fake_research_claim(claim, mode, settings, deadline, search_semaphore=None):
+        return [_make_evidence()]
+
+    async def fake_verify_citations(refs):
+        return {ref: False for ref in refs}
+
+    async def fake_check_agreement(claim, evidence, deadline=None):
+        if claim.text == "주장1":
+            return AgreementResult(agree=True, supporting=evidence, reason="근거 일치")
+        return AgreementResult(agree=False, supporting=[], reason="근거 불일치")
+
+    async def fake_edit_claim(claim, agreement, evidence, max_evidence=5, deadline=None):
+        if agreement.agree:
+            return claim.text, evidence, []
+        return "수정된 주장 [정정: 제999조 → 제89조]", evidence, ["[정정: 제999조 → 제89조]"]
+
+    monkeypatch.setattr(pipeline_mod, "draft", fake_draft)
+    monkeypatch.setattr(pipeline_mod, "decompose_claims", fake_decompose_claims)
+    monkeypatch.setattr(pipeline_mod, "research_claim", fake_research_claim)
+    monkeypatch.setattr(pipeline_mod, "verify_citations", fake_verify_citations)
+    monkeypatch.setattr(pipeline_mod, "check_agreement", fake_check_agreement)
+    monkeypatch.setattr(pipeline_mod, "edit_claim", fake_edit_claim)
+
+    from app.config import get_settings
+    from app.rarr.pipeline import run_rarr
+    settings = get_settings()
+    monkeypatch.setattr(settings, "debug_pipeline", True)
+
+    result = await run_rarr("질의", "simple", settings)
+    assert result.debug is not None
+    assert result.debug["mode"] == "simple"
+    assert result.debug["claims_total"] == 2
+
+    claims = result.debug["claims"]
+    unchanged = next(c for c in claims if c["original"] == "주장1")
+    assert unchanged["agree"] is True
+    assert unchanged["revised"] is None  # 변경 없으므로 None
+
+    changed = next(c for c in claims if "제999조" in c["original"])
+    assert changed["agree"] is False
+    assert changed["agreement_reason"] == "근거 불일치"
+    assert changed["revised"] == "수정된 주장 [정정: 제999조 → 제89조]"
+
+
 @pytest.mark.asyncio
 async def test_run_rarr_logs_total_outcome_draft_failed(monkeypatch, caplog):
     """draft 실패 시 stage=total outcome=draft_failed 하나만 찍히고 draft/decompose/claim은 없어야 한다."""
