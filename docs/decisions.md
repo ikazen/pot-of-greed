@@ -102,6 +102,23 @@ research 단계가 매번 `RuntimeError`를 내고 `run_rarr`의 최상위 예�
 Gemini 무료 티어 일일 할당량 소진으로 전체 파이프라인 재측정은 못 함 — 유지,
 추후 재검증 필요.
 
+**수정(2026-07-26, #39)**: 위 12s 재설정으로도 부족했다 — 프로덕션 실측(run_id
+`76560c88`)에서 decompose 단독 12.025초로 여전히 예산 전체(12s)를 소진하고
+타임아웃, 규칙기반 문장분리 폴백이 draft를 48개 claim으로 쪼갰고, 이 시점에
+deadline이 이미 지나 있어 48개 전부 research 단계에서 빈 evidence로 스킵됐다
+(`research_ms=0`). "검증을 못 했다"가 "코퍼스에 근거가 없다"는 사용자 경고
+문구로 잘못 전달되고, `outcome=success`로도 기록되는 이중 문제였다.
+
+근본 원인은 **decompose가 검증 예산 전체를 클램프 대상으로 삼는 구조** — 한
+단계가 나머지(research+agreement+edit) 몫까지 다 쓸 수 있었다.
+`rarr_decompose_timeout_s`(8s)를 신설해 decompose 전용 상한으로 분리하고,
+`rarr_max_claims`를 0(무제한) → **8**로 캡을 걸었다(48개 claim을 세마포어 4로
+처리하는 것 자체가 어떤 예산으로도 비현실적). `simple_mode_timeout_s`
+12s → **35s**, `complex_mode_timeout_s` 20s → **45s**로 상향 — agreement/edit
+단계가 이번까지 한 번도 실행된 적이 없어(항상 deadline 초과로 스킵) 실측치가
+없었던 만큼, UI 클라이언트 타임아웃(90s)과 draft 실측 소요(~18s)를 상한 삼아
+보수적으로 늘렸다. 이후 `rarr_eval` 재실측으로 조정 여지 있음.
+
 ---
 
 ## J. 웹 UI 툴 선택

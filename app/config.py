@@ -40,9 +40,18 @@ class Settings(BaseSettings):
     rarr_aux_model: str = "gpt-oss:20b"
 
     # RARR 튜닝 노브 (0 = 무제한)
-    rarr_max_claims: int = 0
+    # rarr_max_claims=0(무제한)은 decompose LLM 실패 시 규칙기반 문장분리 폴백이
+    # draft 전체를 수십 개 claim으로 쪼개고, 세마포어(rarr_max_concurrency=4)로
+    # 순차 처리하다 검증 예산을 전부 소진해 나머지가 빈 evidence로 떨어지는
+    # 사고(#39)로 이어졌다. 8로 캡을 걸고 초과분은 기존 deferred 경고로 표기한다.
+    rarr_max_claims: int = 8
     rarr_questions_per_claim: int = 0
     rarr_max_concurrency: int = 4
+    # decompose(aux LLM) 하나가 검증 예산 전체(simple_mode_timeout_s)를 독점하면
+    # research 이하 전 단계가 deadline 초과로 빈 evidence 반환 → 모든 claim이
+    # "근거 미확인"으로 오보되는 구조적 버그(#39)였다. decompose 자기 몫만
+    # 쓰도록 별도 상한을 둔다.
+    rarr_decompose_timeout_s: int = 8
 
     # retrieval
     retrieve_top_k: int = 30
@@ -55,12 +64,14 @@ class Settings(BaseSettings):
     draft_timeout_s: int = 30
     # draft 이후 검증 단계(decompose+research+agreement+edit) 예산. simple/complex 모드가
     # 검증 단계 비용이 크게 다르므로(#14) 노브를 분리.
-    # simple_mode_timeout_s=12는 #35 실측 기반 — decompose(aux LLM) 단독 소요가
-    # Ollama Cloud 멀티테넌트 편차로 4~12s대를 오간다(gpt-oss:20b 기준). 원래
-    # 4s(README "2~4초" 목표에서 역산한 추측치)는 decompose 완주 자체가 불가능해
-    # research 이하 전 단계가 항상 빈 evidence로 반환되는 구조적 버그였다.
-    simple_mode_timeout_s: int = 12
-    complex_mode_timeout_s: int = 20
+    # simple_mode_timeout_s=12(#35)는 decompose 자체가 4~12s를 오가는 상황에서
+    # decompose+research+agreement+edit 전부를 12s 안에 넣을 수 없었다(#39) —
+    # decompose가 예산을 다 쓰면 이후 단계가 통째로 스킵됐다. rarr_decompose_timeout_s
+    # 분리 이후에도 agreement/edit(둘 다 이번까지 실측 0회)에 남는 시간이 필요해
+    # 35s로 상향. UI 클라이언트 타임아웃 90s(ui/app.py) 및 draft 자체 소요(~18s
+    # 실측)를 감안한 상한.
+    simple_mode_timeout_s: int = 35
+    complex_mode_timeout_s: int = 45
     llm_timeout_s: int = 120
 
     # source cards shown in chat UI
