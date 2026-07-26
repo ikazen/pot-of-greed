@@ -109,6 +109,14 @@ async def _process_claim(
     claim_idx: str = "",
 ) -> AttributionReport:
     t_research = time.monotonic()
+    if t_research > deadline:
+        # research_claim/agreement/edit는 deadline 초과 시 조용히 빈 결과로 폴백한다
+        # (#39: 이게 로그 없이 일어나 48/48 "근거 미확인"의 원인을 사후 추적할 수
+        # 없었다). 여기서 한 번은 남겨 원인을 즉시 구분할 수 있게 한다.
+        logger.warning(
+            f"RARR claim run_id={run_id} claim={claim_idx} deadline 초과 상태로 진입 — "
+            f"research/agreement/edit 전부 빈 결과로 스킵됨"
+        )
     evidence = await research_claim(claim, mode, settings, deadline, search_semaphore)
     research_ms = int((time.monotonic() - t_research) * 1000)
 
@@ -229,7 +237,12 @@ async def run_rarr(
 
     try:
         t_decompose = time.monotonic()
-        claims = await decompose_claims(draft_text, deadline=deadline)
+        # #39: decompose(aux LLM)가 검증 예산(deadline) 전체를 클램프 대상으로 삼으면
+        # 혼자 예산을 다 쓰고 타임아웃할 수 있고, 그러면 이후 claim이 전부 deadline
+        # 초과 상태로 시작해 research 단계에서 빈 evidence로 스킵된다. decompose는
+        # 자기 몫(rarr_decompose_timeout_s)만 쓰도록 별도 상한을 준다.
+        decompose_deadline = min(deadline, t_decompose + settings.rarr_decompose_timeout_s)
+        claims = await decompose_claims(draft_text, deadline=decompose_deadline)
         cap = settings.rarr_max_claims
         verified_claims = claims[:cap] if cap else claims
         deferred_claims = claims[cap:] if cap else []

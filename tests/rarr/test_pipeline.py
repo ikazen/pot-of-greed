@@ -258,13 +258,138 @@ async def test_run_rarr_max_claims_cap_marks_deferred(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_run_rarr_no_cap_no_deferred_marker(monkeypatch):
-    """cap 미설정(기본 0)이면 deferred 경로가 발동하지 않는다(회귀)."""
+    """claim 수가 cap(기본 8) 이내면 deferred 경로가 발동하지 않는다(회귀)."""
     _noop_run_rarr_parts(monkeypatch)
 
     from app.config import get_settings
     from app.rarr.pipeline import run_rarr
     result = await run_rarr("질의", "simple", get_settings())
     assert not any(w.validity_flag == "deferred" for w in result.warnings)
+
+
+# ---------------------------------------------------------------------------
+# #39 — decompose 예산 격리 + 기본 claim cap (48/48 "근거 미확인" 사고 회귀)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_run_rarr_decompose_budget_isolated_from_mode_budget(monkeypatch):
+    """decompose가 자기 몫(rarr_decompose_timeout_s)만 쓰고, 남은 검증 예산은
+    research 단계에 온전히 넘어와야 한다.
+
+    수정 전에는 decompose_claims가 모드 전체 deadline을 그대로 받아, decompose
+    혼자 예산을 다 쓰고 나면 이후 claim이 전부 deadline 초과 상태로 research에
+    진입해 빈 evidence를 반환했다(프로덕션 실측 run_id=76560c88, decompose
+    elapsed_ms=12025 == simple_mode_timeout_s 전체 소진).
+    """
+    import asyncio
+    import time
+    import app.rarr.pipeline as pipeline_mod
+
+    async def fake_draft(query, timeout=None):
+        return "초안"
+
+    captured_decompose_deadline = {}
+
+    async def slow_decompose_claims(text, deadline=None):
+        captured_decompose_deadline["value"] = deadline
+        # decompose 자기 몫(rarr_decompose_timeout_s=1)을 거의 다 쓴다.
+        await asyncio.sleep(0.9)
+        return [Claim(text="주장1")]
+
+    research_deadlines = []
+
+    async def fake_research_claim(claim, mode, settings, deadline, search_semaphore=None):
+        research_deadlines.append(deadline)
+        return [_make_evidence()]
+
+    async def fake_verify_citations(refs):
+        return {}
+
+    from app.rarr.agreement import AgreementResult
+
+    async def fake_check_agreement(claim, evidence, deadline=None):
+        return AgreementResult(agree=True, supporting=evidence)
+
+    async def fake_edit_claim(claim, agreement, evidence, max_evidence=5, deadline=None):
+        return claim.text, evidence, []
+
+    monkeypatch.setattr(pipeline_mod, "draft", fake_draft)
+    monkeypatch.setattr(pipeline_mod, "decompose_claims", slow_decompose_claims)
+    monkeypatch.setattr(pipeline_mod, "research_claim", fake_research_claim)
+    monkeypatch.setattr(pipeline_mod, "verify_citations", fake_verify_citations)
+    monkeypatch.setattr(pipeline_mod, "check_agreement", fake_check_agreement)
+    monkeypatch.setattr(pipeline_mod, "edit_claim", fake_edit_claim)
+
+    from app.config import get_settings
+    from app.rarr.pipeline import run_rarr
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "simple_mode_timeout_s", 5)
+    monkeypatch.setattr(settings, "rarr_decompose_timeout_s", 1)
+
+    t0 = time.monotonic()
+    result = await run_rarr("질의", "simple", settings)
+
+    # decompose는 모드 예산(5s) 전체가 아니라 자기 몫(1s)만 받아야 한다.
+    decompose_remaining = captured_decompose_deadline["value"] - t0
+    assert 0.5 <= decompose_remaining <= 1.5
+
+    # decompose가 자기 몫을 거의 다 썼어도(0.9s), 모드 예산(5s) 중 남은 몫이
+    # research 단계에 온전히 남아 있어야 한다.
+    research_remaining = research_deadlines[0] - time.monotonic()
+    assert research_remaining > 2.0
+
+    assert len(result.attributions[0].evidence) == 1
+
+
+@pytest.mark.asyncio
+async def test_run_rarr_default_max_claims_caps_verification(monkeypatch):
+    """기본값이 무제한(0)이던 시절, decompose 폴백이 수십 개 claim을 만들면
+    세마포어(4)로 순차 처리하다 예산이 소진돼 전부 evidence 없이 반환됐다
+    (48/48 사고). 기본 cap(8)이 실제로 적용되는지 확인하는 회귀 가드.
+    """
+    import app.rarr.pipeline as pipeline_mod
+
+    async def fake_draft(query, timeout=None):
+        return "초안"
+
+    async def fake_decompose_claims(text, deadline=None):
+        return [Claim(text=f"주장{i}") for i in range(20)]
+
+    processed = []
+
+    async def fake_research_claim(claim, mode, settings, deadline, search_semaphore=None):
+        processed.append(claim.text)
+        return [_make_evidence()]
+
+    async def fake_verify_citations(refs):
+        return {}
+
+    from app.rarr.agreement import AgreementResult
+
+    async def fake_check_agreement(claim, evidence, deadline=None):
+        return AgreementResult(agree=True, supporting=evidence)
+
+    async def fake_edit_claim(claim, agreement, evidence, max_evidence=5, deadline=None):
+        return claim.text, evidence, []
+
+    monkeypatch.setattr(pipeline_mod, "draft", fake_draft)
+    monkeypatch.setattr(pipeline_mod, "decompose_claims", fake_decompose_claims)
+    monkeypatch.setattr(pipeline_mod, "research_claim", fake_research_claim)
+    monkeypatch.setattr(pipeline_mod, "verify_citations", fake_verify_citations)
+    monkeypatch.setattr(pipeline_mod, "check_agreement", fake_check_agreement)
+    monkeypatch.setattr(pipeline_mod, "edit_claim", fake_edit_claim)
+
+    from app.config import get_settings
+    from app.rarr.pipeline import run_rarr
+
+    settings = get_settings()
+    assert settings.rarr_max_claims == 8  # 기본값 회귀 가드
+
+    result = await run_rarr("질의", "simple", settings)
+    assert len(processed) == 8
+    assert len(result.attributions) == 8
+    assert any(w.validity_flag == "deferred" for w in result.warnings)
 
 
 # ---------------------------------------------------------------------------
@@ -782,6 +907,9 @@ async def test_run_rarr_uses_simple_mode_timeout_for_simple(monkeypatch):
     settings = get_settings()
     monkeypatch.setattr(settings, "simple_mode_timeout_s", 4)
     monkeypatch.setattr(settings, "complex_mode_timeout_s", 20)
+    # #39: decompose는 이제 rarr_decompose_timeout_s로 별도 클램프된다. 여기선
+    # 모드 예산 자체를 검증하는 테스트라 클램프가 끼어들지 않게 넉넉히 준다.
+    monkeypatch.setattr(settings, "rarr_decompose_timeout_s", 100)
 
     t0 = time.monotonic()
     await run_rarr("질의", "simple", settings)
@@ -812,6 +940,7 @@ async def test_run_rarr_uses_complex_mode_timeout_for_complex(monkeypatch):
     settings = get_settings()
     monkeypatch.setattr(settings, "simple_mode_timeout_s", 4)
     monkeypatch.setattr(settings, "complex_mode_timeout_s", 20)
+    monkeypatch.setattr(settings, "rarr_decompose_timeout_s", 100)
 
     t0 = time.monotonic()
     await run_rarr("질의", "complex", settings)
