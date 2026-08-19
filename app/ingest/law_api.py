@@ -17,7 +17,6 @@ from typing import Any
 
 import httpx
 
-from app.config import get_settings
 from app.ingest.models import (
     RawArticle,
     RawCase,
@@ -75,8 +74,7 @@ def _parse_law_list(root: ET.Element) -> list[RawLawListItem]:
     return items
 
 
-async def list_laws(law_name: str) -> list[RawLawListItem]:
-    settings = get_settings()
+async def list_laws(law_name: str, settings) -> list[RawLawListItem]:
     base = settings.law_api_base_url
     results: list[RawLawListItem] = []
     page = 1
@@ -176,8 +174,7 @@ def parse_law_xml(root: ET.Element) -> RawLaw:
     )
 
 
-async def fetch_law(mst: str) -> RawLaw:
-    settings = get_settings()
+async def fetch_law(mst: str, settings) -> RawLaw:
     async with httpx.AsyncClient() as client:
         root = await _get_xml(
             client,
@@ -215,8 +212,7 @@ def _split_refs(text: str) -> list[str]:
     return [p.strip() for p in parts if p.strip()]
 
 
-async def list_cases(query: str, max_pages: int = 10) -> list[RawCaseListItem]:
-    settings = get_settings()
+async def list_cases(query: str, settings, max_pages: int = 10) -> list[RawCaseListItem]:
     base = settings.law_api_base_url
     results: list[RawCaseListItem] = []
     page = 1
@@ -256,8 +252,7 @@ def parse_case_xml(root: ET.Element) -> RawCase:
     )
 
 
-async def fetch_case(case_id: str) -> RawCase:
-    settings = get_settings()
+async def fetch_case(case_id: str, settings) -> RawCase:
     async with httpx.AsyncClient() as client:
         root = await _get_xml(
             client,

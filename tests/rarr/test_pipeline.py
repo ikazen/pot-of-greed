@@ -825,7 +825,7 @@ async def test_run_rarr_bounds_total_search_concurrency_across_claims(monkeypatc
         current -= 1
         return []
 
-    async def fake_rerank(query, chunks, top_k):
+    async def fake_rerank(query, chunks, settings):
         return []
 
     async def fake_expand_2hop(ids):

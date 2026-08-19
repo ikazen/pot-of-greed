@@ -94,7 +94,7 @@ def low_score_chunks():
 
 @pytest.fixture
 def patch_retrieval(monkeypatch, sample_chunks):
-    async def fake_embed_query(text):
+    async def fake_embed_query(text, settings):
         return [0.1] * 1024
 
     async def fake_vector_search(embedding, top_k=30, only_current=True):
@@ -103,7 +103,7 @@ def patch_retrieval(monkeypatch, sample_chunks):
     async def fake_keyword_search(query, top_k=30):
         return sample_chunks
 
-    async def fake_rerank(query, chunks, top_k=None):
+    async def fake_rerank(query, chunks, settings, top_k=None):
         # 실제 reranker는 항상 relevance score로 .score를 재할당한다(reranker.py).
         # RRF 융합 후 score가 RRF 스케일로 바뀌므로(#9) 여기서도 재할당해야
         # should_promote 임계값(0.5) 비교가 원래 의도한 스케일로 맞는다.
@@ -116,7 +116,7 @@ def patch_retrieval(monkeypatch, sample_chunks):
     async def fake_expand_to_parents(chunks):
         return []
 
-    async def fake_hyde_embedding(query):
+    async def fake_hyde_embedding(query, settings):
         return [0.2] * 1024
 
     async def fake_decompose(query):
@@ -136,7 +136,7 @@ def patch_retrieval(monkeypatch, sample_chunks):
 
 @pytest.fixture
 def patch_low_score_retrieval(monkeypatch, low_score_chunks):
-    async def fake_embed_query(text):
+    async def fake_embed_query(text, settings):
         return [0.1] * 1024
 
     async def fake_vector_search(embedding, top_k=30, only_current=True):
@@ -145,7 +145,7 @@ def patch_low_score_retrieval(monkeypatch, low_score_chunks):
     async def fake_keyword_search(query, top_k=30):
         return low_score_chunks
 
-    async def fake_rerank(query, chunks, top_k=None):
+    async def fake_rerank(query, chunks, settings, top_k=None):
         result = chunks[:top_k] if top_k else chunks
         return [replace(c, score=0.3) for c in result]
 
@@ -155,7 +155,7 @@ def patch_low_score_retrieval(monkeypatch, low_score_chunks):
     async def fake_expand_to_parents(chunks):
         return []
 
-    async def fake_hyde_embedding(query):
+    async def fake_hyde_embedding(query, settings):
         return [0.2] * 1024
 
     async def fake_decompose(query):

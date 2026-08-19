@@ -2,11 +2,10 @@ from __future__ import annotations
 
 import httpx
 
-from app.config import get_settings
 from app.retrieval.types import Chunk
 
 
-async def rerank(query: str, chunks: list[Chunk], top_k: int | None = None) -> list[Chunk]:
+async def rerank(query: str, chunks: list[Chunk], settings, top_k: int | None = None) -> list[Chunk]:
     """Rerank chunks using bge-reranker-v2-m3 via Ollama /api/rerank.
 
     Requires Ollama >= 0.3 on mac-server.
@@ -16,7 +15,6 @@ async def rerank(query: str, chunks: list[Chunk], top_k: int | None = None) -> l
     if not chunks:
         return chunks
 
-    settings = get_settings()
     k = top_k if top_k is not None else settings.rerank_top_k
 
     documents = [c.text for c in chunks]

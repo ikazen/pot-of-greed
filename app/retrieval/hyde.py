@@ -10,7 +10,7 @@ _HYDE_SYSTEM = (
 )
 
 
-async def hyde_embedding(query: str) -> list[float]:
+async def hyde_embedding(query: str, settings) -> list[float]:
     """HyDE: 가상 답변 문서 생성 → 임베딩.
 
     LLM 호출 실패 시 쿼리 직접 임베딩으로 폴백.
@@ -25,4 +25,4 @@ async def hyde_embedding(query: str) -> list[float]:
         hypothetical = hypothetical.strip() or query
     except Exception:
         hypothetical = query
-    return await embed_query(hypothetical)
+    return await embed_query(hypothetical, settings)

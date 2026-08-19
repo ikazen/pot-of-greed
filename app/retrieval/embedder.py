@@ -2,11 +2,8 @@ from __future__ import annotations
 
 import httpx
 
-from app.config import get_settings
 
-
-async def embed_query(text: str) -> list[float]:
-    settings = get_settings()
+async def embed_query(text: str, settings) -> list[float]:
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.post(
             f"{settings.ollama_base_url}/api/embed",
@@ -18,8 +15,7 @@ async def embed_query(text: str) -> list[float]:
     return data["embeddings"][0]
 
 
-async def embed_batch(texts: list[str]) -> list[list[float]]:
-    settings = get_settings()
+async def embed_batch(texts: list[str], settings) -> list[list[float]]:
     async with httpx.AsyncClient(timeout=300.0) as client:
         resp = await client.post(
             f"{settings.ollama_base_url}/api/embed",

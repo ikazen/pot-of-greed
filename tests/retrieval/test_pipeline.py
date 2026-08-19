@@ -11,7 +11,7 @@ async def test_promotion_score_uses_raw_vector_top1(monkeypatch):
     chunk = Chunk("art_income_14", "article", "본문", 0.73,
                    {"law_name": "소득세법", "article_no": "제14조", "clause_path": None, "is_current": True})
 
-    async def fake_embed_query(text):
+    async def fake_embed_query(text, settings):
         return [0.1] * 1024
 
     calls = {"vector_search_top_k": None, "rerank_called": False, "expand_1hop_called": False}
@@ -20,7 +20,7 @@ async def test_promotion_score_uses_raw_vector_top1(monkeypatch):
         calls["vector_search_top_k"] = top_k
         return [chunk]
 
-    async def fake_rerank(query, chunks, top_k=None):
+    async def fake_rerank(query, chunks, settings, top_k=None):
         calls["rerank_called"] = True
         return chunks
 
@@ -46,7 +46,7 @@ async def test_promotion_score_uses_raw_vector_top1(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_promotion_score_empty_vector_results_returns_zero(monkeypatch):
-    async def fake_embed_query(text):
+    async def fake_embed_query(text, settings):
         return [0.1] * 1024
 
     async def fake_vector_search(embedding, top_k=30, only_current=True):
@@ -73,7 +73,7 @@ async def test_retrieve_simple_hydrates_graph_only_chunk(monkeypatch):
     graph_only_chunk = Chunk("art_graph_only", "article", "그래프 전용 조문 본문", 0.0,
                               {"law_name": "법인세법", "article_no": "제52조", "clause_path": None, "is_current": True})
 
-    async def fake_embed_query(text):
+    async def fake_embed_query(text, settings):
         return [0.1] * 1024
 
     async def fake_vector_search(embedding, top_k=30, only_current=True):
@@ -82,7 +82,7 @@ async def test_retrieve_simple_hydrates_graph_only_chunk(monkeypatch):
     async def fake_keyword_search(query, top_k=30):
         return [found_chunk]
 
-    async def fake_rerank(query, chunks, top_k=None):
+    async def fake_rerank(query, chunks, settings, top_k=None):
         return chunks[:top_k] if top_k else chunks
 
     async def fake_expand_1hop(chunk_ids):
@@ -126,7 +126,7 @@ async def test_retrieve_simple_no_hydration_when_graph_chunk_already_in_pool(mon
     found_chunk = Chunk("art_income_14", "article", "소득세법 제14조", 0.9,
                          {"law_name": "소득세법", "article_no": "제14조", "clause_path": None, "is_current": True})
 
-    async def fake_embed_query(text):
+    async def fake_embed_query(text, settings):
         return [0.1] * 1024
 
     async def fake_vector_search(embedding, top_k=30, only_current=True):
@@ -135,7 +135,7 @@ async def test_retrieve_simple_no_hydration_when_graph_chunk_already_in_pool(mon
     async def fake_keyword_search(query, top_k=30):
         return [found_chunk]
 
-    async def fake_rerank(query, chunks, top_k=None):
+    async def fake_rerank(query, chunks, settings, top_k=None):
         return chunks[:top_k] if top_k else chunks
 
     async def fake_expand_1hop(chunk_ids):
