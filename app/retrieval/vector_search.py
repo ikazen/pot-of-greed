@@ -1,17 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 from app.db.pg import get_pool
-
-
-@dataclass
-class Chunk:
-    chunk_id: str
-    table: str        # "article" | "case"
-    text: str
-    score: float
-    meta: dict
+from app.retrieval.types import Chunk
 
 
 async def vector_search(

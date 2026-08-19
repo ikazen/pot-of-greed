@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from app.retrieval.fusion import rrf_fuse
-from app.retrieval.vector_search import Chunk
+from app.retrieval.types import Chunk
 
 
 def _chunk(chunk_id, score=0.5, table="article"):

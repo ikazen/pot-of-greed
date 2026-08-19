@@ -5,7 +5,7 @@ from dataclasses import replace
 import pytest
 import httpx
 
-from app.retrieval.vector_search import Chunk
+from app.retrieval.types import Chunk
 
 # ---------------------------------------------------------------------------
 # Required env vars for Settings

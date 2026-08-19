@@ -1,16 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-
 from app.db.neo4j import get_driver
-
-
-@dataclass
-class GraphChunk:
-    chunk_id: str
-    node_type: str       # "article" | "case"
-    validity_flag: str | None = None
-    meta: dict = field(default_factory=dict)
+from app.retrieval.types import GraphChunk
 
 
 async def expand_1hop(chunk_ids: list[str]) -> list[GraphChunk]:

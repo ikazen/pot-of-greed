@@ -5,7 +5,8 @@ import time
 
 from app.rarr.types import Claim, Evidence
 from app.retrieval.pipeline import retrieve_simple, search_complex
-from app.retrieval.vector_search import Chunk, hydrate_by_ids
+from app.retrieval.types import Chunk
+from app.retrieval.vector_search import hydrate_by_ids
 
 
 def _chunk_to_evidence(chunk: Chunk) -> Evidence:
