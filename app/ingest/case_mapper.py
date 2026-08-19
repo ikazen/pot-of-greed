@@ -45,11 +45,23 @@ class MappedCase:
 
 def _ref_article_to_chunk_id(text: str) -> str | None:
     """
-    "법인세법 제52조 제1항"  → "art_법인세법_52_1"
-    "소득세법 제14조"        → "art_소득세법_14"
-    "법인세법 제52조제1항"   → "art_법인세법_52_1"  (공백 없는 형태도 처리)
+    "법인세법 제52조 제1항"    → "art_법인세법_52_1"
+    "소득세법 제14조"          → "art_소득세법_14"
+    "법인세법 제52조제1항"     → "art_법인세법_52_1"    (공백 없는 형태도 처리)
+    "법인세법 제18조의3"       → "art_법인세법_18의3"   (가지번호, #40)
+    "법인세법 제18조의3 제1항" → "art_법인세법_18의3_1"
     """
     t = text.strip()
+    # 가지번호 + 항 포함
+    m = re.match(r"(.+?)\s*제(\d+)조의(\d+)\s*제(\d+)항", t)
+    if m:
+        law, art, branch, clause = m.groups()
+        return f"art_{law.strip()}_{art}의{branch}_{clause}"
+    # 가지번호만
+    m = re.match(r"(.+?)\s*제(\d+)조의(\d+)", t)
+    if m:
+        law, art, branch = m.groups()
+        return f"art_{law.strip()}_{art}의{branch}"
     # 항 포함
     m = re.match(r"(.+?)\s*제(\d+)조\s*제(\d+)항", t)
     if m:
