@@ -19,7 +19,7 @@ def ollama_embed_url():
 
 @pytest.mark.asyncio
 async def test_hyde_uses_hypothetical_text(ollama_url, ollama_embed_url):
-    from app.retrieval.hyde import hyde_embedding
+    from app.rag.hyde import hyde_embedding
 
     with respx.mock:
         respx.post(ollama_url).mock(return_value=httpx.Response(
@@ -39,7 +39,7 @@ async def test_hyde_uses_hypothetical_text(ollama_url, ollama_embed_url):
 
 @pytest.mark.asyncio
 async def test_hyde_fallback_on_llm_error(ollama_url, ollama_embed_url):
-    from app.retrieval.hyde import hyde_embedding
+    from app.rag.hyde import hyde_embedding
 
     with respx.mock:
         respx.post(ollama_url).mock(return_value=httpx.Response(500))

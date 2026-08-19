@@ -6,8 +6,8 @@ from app.agent.decompose import decompose
 from app.retrieval.context_expand import expand_to_parents
 from app.retrieval.embedder import embed_query
 from app.retrieval.fusion import rrf_fuse
+from app.rag.hyde import hyde_embedding
 from app.retrieval.graph_expand import expand_1hop
-from app.retrieval.hyde import hyde_embedding
 from app.retrieval.keyword_search import keyword_search
 from app.retrieval.reranker import rerank
 from app.retrieval.types import Chunk

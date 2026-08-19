@@ -197,3 +197,25 @@ edit 후 재검증을 추가 — 최종 텍스트에서 ref를 재추출해 `ver
 Ollama Cloud 카탈로그는 자주 바뀌므로(같은 조사에서 `qwen3-coder-next`가 3일 전
 retired된 것도 확인) 모델 선정 시 블로그·문서보다 `GET /api/tags`로 실카탈로그를
 직접 확인하는 게 안전하다.
+
+---
+
+## O. retrieval/rag 패키지 분리
+
+**결정**: 순수 코퍼스 조회(`app/retrieval/`)와 LLM 기반 검색 기법(`app/rag/`)을 별도 패키지로
+분리. `hyde.py`(HyDE — LLM으로 가상 문서 생성 후 임베딩)를 `app/retrieval/`에서 `app/rag/`로 이동(#48).
+
+**왜**: 세법/판례 코퍼스 저장·수집·조회 계층(`app/{db,ingest,retrieval}`)을 다른 프로젝트와
+공유할 공통 repo(`law-corpus`)로 분리하는 작업 중(Milestone "법령 코퍼스 분리") 발견 —
+`hyde.py`만 유일하게 `app.llm`(Gemini/Ollama 프로바이더 추상화)을 참조해 데이터 계층이면서
+앱의 LLM 설정에 역참조하고 있었다. HyDE는 검색 기법이지만 본질적으로 LLM 호출이 필요한
+RAG 기법이지 순수 코퍼스 조회가 아니므로, 공통 repo로 뺄 수 없는 쪽(`app/rag/`)에 남긴다.
+
+경계는 "LLM을 호출하는가"로 가른다 — `vector_search`/`keyword_search`/`rrf_fuse`/`rerank`/
+`graph_expand`(임베딩 벡터·텍스트만 입력, LLM 미호출)는 `retrieval/`에 남고, HyDE처럼 LLM
+응답이 검색 입력 자체가 되는 기법은 `rag/`로 간다.
+
+**미해결**: `app/retrieval/pipeline.py::search_complex`(복잡 모드 하이브리드 검색)가
+`app/rag/hyde.py`를 호출한다 — `pipeline.py` 자체는 law-corpus로 이관될 예정(Milestone B)이라,
+이관 시점에 이 역참조를 어떻게 끊을지(HyDE를 콜백으로 주입? `search_complex`를 HyDE 유무로
+쪼갤?) 결정이 필요하다. Milestone B 착수 시 판단.
