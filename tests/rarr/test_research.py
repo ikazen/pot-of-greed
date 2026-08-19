@@ -105,15 +105,16 @@ async def test_research_complex_questions_per_claim_cap(monkeypatch):
     async def fake_expand_to_parents(chunks):
         return []
 
-    # lazy imports inside _research_complex read from source module objects
+    # 리랭크/그래프 확장은 _research_complex 내부 lazy import이므로 source module에
+    # 패치한다. search_complex는 research.py가 모듈 최상단에서 import해 자기
+    # 네임스페이스에 바인딩하므로 research_mod 쪽에 패치해야 한다.
     import app.rarr.query_gen as qg_mod
-    import app.api.chat as chat_mod
     from app.retrieval import reranker as reranker_mod
     from app.retrieval import graph_expand as ge_mod
     from app.retrieval import context_expand as ce_mod
 
     monkeypatch.setattr(qg_mod, "generate_questions", fake_generate_questions)
-    monkeypatch.setattr(chat_mod, "_search_complex", fake_search_complex)
+    monkeypatch.setattr(research_mod, "search_complex", fake_search_complex)
     monkeypatch.setattr(reranker_mod, "rerank", fake_rerank)
     monkeypatch.setattr(ge_mod, "expand_2hop", fake_expand_2hop)
     monkeypatch.setattr(ce_mod, "expand_to_parents", fake_expand_to_parents)
@@ -161,13 +162,12 @@ async def test_research_complex_hydrates_graph_only_chunk(monkeypatch):
         return [graph_only_chunk]
 
     import app.rarr.query_gen as qg_mod
-    import app.api.chat as chat_mod
     from app.retrieval import reranker as reranker_mod
     from app.retrieval import graph_expand as ge_mod
     from app.retrieval import context_expand as ce_mod
 
     monkeypatch.setattr(qg_mod, "generate_questions", fake_generate_questions)
-    monkeypatch.setattr(chat_mod, "_search_complex", fake_search_complex)
+    monkeypatch.setattr(research_mod, "search_complex", fake_search_complex)
     monkeypatch.setattr(reranker_mod, "rerank", fake_rerank)
     monkeypatch.setattr(ge_mod, "expand_2hop", fake_expand_2hop)
     monkeypatch.setattr(ce_mod, "expand_to_parents", fake_expand_to_parents)

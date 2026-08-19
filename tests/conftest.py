@@ -89,7 +89,7 @@ def low_score_chunks():
 
 # ---------------------------------------------------------------------------
 # Retrieval patches
-# Patch in app.api.chat where names are imported (not source modules).
+# Patch in app.retrieval.pipeline where names are imported (not source modules).
 # ---------------------------------------------------------------------------
 
 @pytest.fixture
@@ -123,14 +123,14 @@ def patch_retrieval(monkeypatch, sample_chunks):
         from app.agent.decompose import SubQuery
         return [SubQuery(text=query, tool_hint="hybrid")]
 
-    monkeypatch.setattr("app.api.chat.embed_query", fake_embed_query)
-    monkeypatch.setattr("app.api.chat.vector_search", fake_vector_search)
-    monkeypatch.setattr("app.api.chat.keyword_search", fake_keyword_search)
-    monkeypatch.setattr("app.api.chat.rerank", fake_rerank)
-    monkeypatch.setattr("app.api.chat.expand_1hop", fake_expand_1hop)
-    monkeypatch.setattr("app.api.chat.expand_to_parents", fake_expand_to_parents)
-    monkeypatch.setattr("app.api.chat.hyde_embedding", fake_hyde_embedding)
-    monkeypatch.setattr("app.api.chat.decompose", fake_decompose)
+    monkeypatch.setattr("app.retrieval.pipeline.embed_query", fake_embed_query)
+    monkeypatch.setattr("app.retrieval.pipeline.vector_search", fake_vector_search)
+    monkeypatch.setattr("app.retrieval.pipeline.keyword_search", fake_keyword_search)
+    monkeypatch.setattr("app.retrieval.pipeline.rerank", fake_rerank)
+    monkeypatch.setattr("app.retrieval.pipeline.expand_1hop", fake_expand_1hop)
+    monkeypatch.setattr("app.retrieval.pipeline.expand_to_parents", fake_expand_to_parents)
+    monkeypatch.setattr("app.retrieval.pipeline.hyde_embedding", fake_hyde_embedding)
+    monkeypatch.setattr("app.retrieval.pipeline.decompose", fake_decompose)
     return sample_chunks
 
 
@@ -162,14 +162,14 @@ def patch_low_score_retrieval(monkeypatch, low_score_chunks):
         from app.agent.decompose import SubQuery
         return [SubQuery(text=query, tool_hint="hybrid")]
 
-    monkeypatch.setattr("app.api.chat.embed_query", fake_embed_query)
-    monkeypatch.setattr("app.api.chat.vector_search", fake_vector_search)
-    monkeypatch.setattr("app.api.chat.keyword_search", fake_keyword_search)
-    monkeypatch.setattr("app.api.chat.rerank", fake_rerank)
-    monkeypatch.setattr("app.api.chat.expand_1hop", fake_expand_1hop)
-    monkeypatch.setattr("app.api.chat.expand_to_parents", fake_expand_to_parents)
-    monkeypatch.setattr("app.api.chat.hyde_embedding", fake_hyde_embedding)
-    monkeypatch.setattr("app.api.chat.decompose", fake_decompose)
+    monkeypatch.setattr("app.retrieval.pipeline.embed_query", fake_embed_query)
+    monkeypatch.setattr("app.retrieval.pipeline.vector_search", fake_vector_search)
+    monkeypatch.setattr("app.retrieval.pipeline.keyword_search", fake_keyword_search)
+    monkeypatch.setattr("app.retrieval.pipeline.rerank", fake_rerank)
+    monkeypatch.setattr("app.retrieval.pipeline.expand_1hop", fake_expand_1hop)
+    monkeypatch.setattr("app.retrieval.pipeline.expand_to_parents", fake_expand_to_parents)
+    monkeypatch.setattr("app.retrieval.pipeline.hyde_embedding", fake_hyde_embedding)
+    monkeypatch.setattr("app.retrieval.pipeline.decompose", fake_decompose)
     return low_score_chunks
 
 
