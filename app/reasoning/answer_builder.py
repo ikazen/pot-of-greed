@@ -3,20 +3,20 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-from app.retrieval.vector_search import Chunk
+from app.retrieval.types import Chunk, ValidityFlag
 
 logger = logging.getLogger(__name__)
 
 
 def build_warning_message(flag: str, meta: dict) -> str:
     """§4 표기 방식: 판례별 구체적 경고 문구 생성."""
-    if flag == "overruled":
+    if flag == ValidityFlag.OVERRULED:
         return "[주의] 이 판례는 이후 판례에 의해 변경되었습니다. 현행 법리 적용 시 결론이 달라질 수 있습니다."
-    if flag == "law_amended":
+    if flag == ValidityFlag.LAW_AMENDED:
         article = meta.get("amended_article") or meta.get("article_ref") or ""
         suffix = f" ({article} 개정)" if article else ""
         return f"[주의] 이 판례의 근거 조문이 판결 이후 개정되었습니다{suffix}. 현행법 적용 시 결론이 달라질 수 있습니다."
-    if flag == "uncertain":
+    if flag == ValidityFlag.UNCERTAIN:
         return "[주의] 이 판례의 현행 유효성이 불확실합니다. 최신 판례를 별도로 확인하십시오."
     return f"[주의] 유효성 상태: {flag}"
 
@@ -37,7 +37,7 @@ class Warning:
     message: str
 
 
-VALIDITY_FLAGS = {"overruled", "law_amended", "uncertain"}
+VALIDITY_FLAGS = {ValidityFlag.OVERRULED, ValidityFlag.LAW_AMENDED, ValidityFlag.UNCERTAIN}
 
 
 def first_line(text: str, limit: int = 100) -> str:

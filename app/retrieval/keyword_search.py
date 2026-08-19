@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from app.db.pg import get_pool
-from app.retrieval.vector_search import Chunk
+from app.retrieval.types import Chunk
 
 
 async def keyword_search(query: str, top_k: int = 30) -> list[Chunk]:

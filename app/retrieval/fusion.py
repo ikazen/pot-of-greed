@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from app.retrieval.vector_search import Chunk
+from app.retrieval.types import Chunk
 
 
 def rrf_fuse(

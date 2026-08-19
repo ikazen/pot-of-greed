@@ -3,7 +3,7 @@ from __future__ import annotations
 import httpx
 
 from app.config import get_settings
-from app.retrieval.vector_search import Chunk
+from app.retrieval.types import Chunk
 
 
 async def rerank(query: str, chunks: list[Chunk], top_k: int | None = None) -> list[Chunk]:

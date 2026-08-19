@@ -10,7 +10,8 @@ from app.retrieval.graph_expand import expand_1hop
 from app.retrieval.hyde import hyde_embedding
 from app.retrieval.keyword_search import keyword_search
 from app.retrieval.reranker import rerank
-from app.retrieval.vector_search import Chunk, hydrate_by_ids, vector_search
+from app.retrieval.types import Chunk
+from app.retrieval.vector_search import hydrate_by_ids, vector_search
 
 
 async def promotion_score(query: str, settings) -> float:

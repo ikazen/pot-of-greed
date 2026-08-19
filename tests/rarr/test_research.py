@@ -7,7 +7,7 @@ from app.rarr.types import Claim, Evidence
 
 
 def _make_chunk(chunk_id="c1", table="article", score=0.9):
-    from app.retrieval.vector_search import Chunk
+    from app.retrieval.types import Chunk
     meta = {"law_name": "소득세법", "article_no": "제89조"} if table == "article" else {"case_no": "2018두123"}
     return Chunk(chunk_id=chunk_id, table=table, text="sample text", score=score, meta=meta)
 
@@ -135,7 +135,7 @@ async def test_research_complex_hydrates_graph_only_chunk(monkeypatch):
     hydrate_by_ids로 본문이 채워져야 한다."""
     import app.rarr.research as research_mod
     from app.rarr.types import Claim
-    from app.retrieval.graph_expand import GraphChunk
+    from app.retrieval.types import GraphChunk
 
     found_chunk = _make_chunk("found", table="article", score=0.9)
     graph_only_chunk = _make_chunk("graph_only", table="article", score=0.0)

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.retrieval.vector_search import Chunk
+from app.retrieval.types import Chunk
 
 
 @pytest.mark.asyncio
@@ -66,7 +66,7 @@ async def test_promotion_score_empty_vector_results_returns_zero(monkeypatch):
 async def test_retrieve_simple_hydrates_graph_only_chunk(monkeypatch):
     """#8: 검색 후보 풀(fused) 밖에서 1hop 그래프로만 발견된 chunk는
     드롭되지 않고 hydrate_by_ids로 본문이 채워져야 한다."""
-    from app.retrieval.graph_expand import GraphChunk
+    from app.retrieval.types import GraphChunk
 
     found_chunk = Chunk("art_income_14", "article", "소득세법 제14조 본문", 0.9,
                          {"law_name": "소득세법", "article_no": "제14조", "clause_path": None, "is_current": True})
@@ -121,7 +121,7 @@ async def test_retrieve_simple_hydrates_graph_only_chunk(monkeypatch):
 @pytest.mark.asyncio
 async def test_retrieve_simple_no_hydration_when_graph_chunk_already_in_pool(monkeypatch):
     """그래프 확장 chunk가 이미 fused/reranked 안에 있으면 hydrate_by_ids를 호출하지 않는다."""
-    from app.retrieval.graph_expand import GraphChunk
+    from app.retrieval.types import GraphChunk
 
     found_chunk = Chunk("art_income_14", "article", "소득세법 제14조", 0.9,
                          {"law_name": "소득세법", "article_no": "제14조", "clause_path": None, "is_current": True})
