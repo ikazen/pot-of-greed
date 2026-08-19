@@ -71,7 +71,7 @@ async def _research_complex(
     if time.monotonic() > deadline:
         return fused
 
-    reranked = await rerank(claim.text, fused, top_k=settings.rerank_top_k)
+    reranked = await rerank(claim.text, fused, settings)
     graph_chunks = await expand_2hop([c.chunk_id for c in reranked])
 
     txn_date = _extract_transaction_date(claim.text)

@@ -88,9 +88,9 @@ async def upsert_neo4j(session, mapped: MappedLaw) -> None:
         )
 
 
-async def ingest_law(law_name: str, pg_conn: asyncpg.Connection, neo4j_session) -> None:
+async def ingest_law(law_name: str, pg_conn: asyncpg.Connection, neo4j_session, settings) -> None:
     print(f"[{law_name}] 검색 중...")
-    items = await list_laws(law_name)
+    items = await list_laws(law_name, settings)
     current = next((i for i in items if i.is_current), None)
     if not current:
         if items:
@@ -100,7 +100,7 @@ async def ingest_law(law_name: str, pg_conn: asyncpg.Connection, neo4j_session) 
             return
 
     print(f"[{law_name}] MST={current.mst} 조회 중...")
-    raw = await fetch_law(current.mst)
+    raw = await fetch_law(current.mst, settings)
     mapped = map_law(raw)
 
     pg_inserted = await upsert_pg(pg_conn, mapped)
@@ -128,7 +128,7 @@ async def main() -> None:
         async with driver.session() as neo4j_session:
             for law_name in TARGET_LAWS:
                 try:
-                    await ingest_law(law_name, pg_conn, neo4j_session)
+                    await ingest_law(law_name, pg_conn, neo4j_session, settings)
                 except Exception as exc:
                     print(f"[{law_name}] 오류: {exc}")
 

@@ -96,7 +96,7 @@ async def test_research_complex_questions_per_claim_cap(monkeypatch):
         search_calls.append(query)
         return []
 
-    async def fake_rerank(query, chunks, top_k):
+    async def fake_rerank(query, chunks, settings):
         return []
 
     async def fake_expand_2hop(ids):
@@ -146,7 +146,7 @@ async def test_research_complex_hydrates_graph_only_chunk(monkeypatch):
     async def fake_search_complex(query, settings):
         return [found_chunk]
 
-    async def fake_rerank(query, chunks, top_k):
+    async def fake_rerank(query, chunks, settings):
         return chunks
 
     async def fake_expand_2hop(ids):

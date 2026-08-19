@@ -21,7 +21,7 @@ async def promotion_score(query: str, settings) -> float:
     승격 신호 하나 읽으려고 돌리고 버리던 낭비를 제거한다. retrieve_simple
     자체는 app.rarr.research(claim별 실제 검색)에서 계속 쓰인다.
     """
-    embedding = await embed_query(query)
+    embedding = await embed_query(query, settings)
     vec_chunks = await vector_search(embedding, top_k=1)
     return vec_chunks[0].score if vec_chunks else 0.0
 
@@ -38,10 +38,10 @@ async def parallel_search(
 
 
 async def retrieve_simple(query: str, settings) -> list[Chunk]:
-    embedding = await embed_query(query)
+    embedding = await embed_query(query, settings)
     vec_chunks, kw_chunks = await parallel_search(embedding, query, settings.retrieve_top_k)
     fused = rrf_fuse(vec_chunks, kw_chunks, k=settings.rrf_k, top_n=settings.retrieve_top_k)
-    reranked = await rerank(query, fused, top_k=settings.rerank_top_k)
+    reranked = await rerank(query, fused, settings)
     extra_graph = await expand_1hop([c.chunk_id for c in reranked])
     extra_chunk_ids = {g.chunk_id for g in extra_graph}
     reranked_ids = {r.chunk_id for r in reranked}
@@ -64,8 +64,8 @@ async def search_complex(query: str, settings) -> list[Chunk]:
         # tool_hint 기반 그래프 전용 라우팅(app.agent.tool_router.route)은 아직 그래프
         # 전용 검색 백엔드가 없어 미배선 상태 — 향후 연결 지점(#16).
         direct_emb, hyde_emb = await asyncio.gather(
-            embed_query(sq.text),
-            hyde_embedding(sq.text),
+            embed_query(sq.text, settings),
+            hyde_embedding(sq.text, settings),
         )
         vec_direct, vec_hyde, kw = await asyncio.gather(
             vector_search(direct_emb, top_k=settings.retrieve_top_k),

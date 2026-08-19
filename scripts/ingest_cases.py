@@ -118,7 +118,7 @@ async def main() -> None:
         async with driver.session() as neo4j_session:
             for query in SEARCH_QUERIES:
                 print(f"\n[검색: {query}] 판례 목록 조회 중...")
-                items = await list_cases(query, max_pages=MAX_PAGES_PER_QUERY)
+                items = await list_cases(query, settings, max_pages=MAX_PAGES_PER_QUERY)
                 print(f"  검색 결과: {len(items)}건")
 
                 for item in items:
@@ -127,7 +127,7 @@ async def main() -> None:
                     seen_case_ids.add(item.case_id)
 
                     try:
-                        raw = await fetch_case(item.case_id)
+                        raw = await fetch_case(item.case_id, settings)
                     except Exception as exc:
                         print(f"  [SKIP] {item.case_no} 조회 오류: {exc}")
                         total_skipped += 1
