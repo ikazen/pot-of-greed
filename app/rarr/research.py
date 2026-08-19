@@ -4,6 +4,7 @@ import asyncio
 import time
 
 from app.rarr.types import Claim, Evidence
+from app.retrieval.pipeline import retrieve_simple, search_complex
 from app.retrieval.vector_search import Chunk, hydrate_by_ids
 
 
@@ -22,8 +23,7 @@ def _chunk_to_evidence(chunk: Chunk) -> Evidence:
 
 
 async def _research_simple(claim: Claim, settings) -> list[Chunk]:
-    from app.api.chat import _retrieve_simple
-    return await _retrieve_simple(claim.text, settings)
+    return await retrieve_simple(claim.text, settings)
 
 
 async def _research_complex(
@@ -32,10 +32,11 @@ async def _research_complex(
     deadline: float,
     search_semaphore: asyncio.Semaphore | None = None,
 ) -> list[Chunk]:
-    from app.api.chat import _search_complex
     from app.retrieval.reranker import rerank
     from app.retrieval.graph_expand import expand_2hop, filter_by_transaction_date
     from app.retrieval.context_expand import expand_to_parents
+    # app.api.chat이 app.rarr.pipeline(→ research)을 임포트하므로, 이 방향의
+    # 참조는 최상단에 두면 순환 임포트가 된다 — 함수 호출 시점 지연 임포트로 유지.
     from app.api.chat import _extract_transaction_date
 
     from app.rarr.query_gen import generate_questions
@@ -55,7 +56,7 @@ async def _research_complex(
         if time.monotonic() > deadline:
             return []
         async with semaphore:
-            return await _search_complex(q, settings)
+            return await search_complex(q, settings)
 
     results = await asyncio.gather(*[_search_one(q) for q in questions])
 

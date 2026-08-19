@@ -28,15 +28,15 @@ async def test_promotion_score_uses_raw_vector_top1(monkeypatch):
         calls["expand_1hop_called"] = True
         return []
 
-    monkeypatch.setattr("app.api.chat.embed_query", fake_embed_query)
-    monkeypatch.setattr("app.api.chat.vector_search", fake_vector_search)
-    monkeypatch.setattr("app.api.chat.rerank", fake_rerank)
-    monkeypatch.setattr("app.api.chat.expand_1hop", fake_expand_1hop)
+    monkeypatch.setattr("app.retrieval.pipeline.embed_query", fake_embed_query)
+    monkeypatch.setattr("app.retrieval.pipeline.vector_search", fake_vector_search)
+    monkeypatch.setattr("app.retrieval.pipeline.rerank", fake_rerank)
+    monkeypatch.setattr("app.retrieval.pipeline.expand_1hop", fake_expand_1hop)
 
-    from app.api.chat import _promotion_score
+    from app.retrieval.pipeline import promotion_score
     from app.config import get_settings
 
-    score = await _promotion_score("소득세법 제14조?", get_settings())
+    score = await promotion_score("소득세법 제14조?", get_settings())
 
     assert score == 0.73
     assert calls["vector_search_top_k"] == 1
@@ -52,13 +52,13 @@ async def test_promotion_score_empty_vector_results_returns_zero(monkeypatch):
     async def fake_vector_search(embedding, top_k=30, only_current=True):
         return []
 
-    monkeypatch.setattr("app.api.chat.embed_query", fake_embed_query)
-    monkeypatch.setattr("app.api.chat.vector_search", fake_vector_search)
+    monkeypatch.setattr("app.retrieval.pipeline.embed_query", fake_embed_query)
+    monkeypatch.setattr("app.retrieval.pipeline.vector_search", fake_vector_search)
 
-    from app.api.chat import _promotion_score
+    from app.retrieval.pipeline import promotion_score
     from app.config import get_settings
 
-    score = await _promotion_score("애매한 질의", get_settings())
+    score = await promotion_score("애매한 질의", get_settings())
     assert score == 0.0
 
 
@@ -98,18 +98,18 @@ async def test_retrieve_simple_hydrates_graph_only_chunk(monkeypatch):
         hydrate_calls.append(sorted(chunk_ids))
         return [graph_only_chunk]
 
-    monkeypatch.setattr("app.api.chat.embed_query", fake_embed_query)
-    monkeypatch.setattr("app.api.chat.vector_search", fake_vector_search)
-    monkeypatch.setattr("app.api.chat.keyword_search", fake_keyword_search)
-    monkeypatch.setattr("app.api.chat.rerank", fake_rerank)
-    monkeypatch.setattr("app.api.chat.expand_1hop", fake_expand_1hop)
-    monkeypatch.setattr("app.api.chat.expand_to_parents", fake_expand_to_parents)
-    monkeypatch.setattr("app.api.chat.hydrate_by_ids", fake_hydrate_by_ids)
+    monkeypatch.setattr("app.retrieval.pipeline.embed_query", fake_embed_query)
+    monkeypatch.setattr("app.retrieval.pipeline.vector_search", fake_vector_search)
+    monkeypatch.setattr("app.retrieval.pipeline.keyword_search", fake_keyword_search)
+    monkeypatch.setattr("app.retrieval.pipeline.rerank", fake_rerank)
+    monkeypatch.setattr("app.retrieval.pipeline.expand_1hop", fake_expand_1hop)
+    monkeypatch.setattr("app.retrieval.pipeline.expand_to_parents", fake_expand_to_parents)
+    monkeypatch.setattr("app.retrieval.pipeline.hydrate_by_ids", fake_hydrate_by_ids)
 
-    from app.api.chat import _retrieve_simple
+    from app.retrieval.pipeline import retrieve_simple
     from app.config import get_settings
 
-    result = await _retrieve_simple("법인세법 제52조와 소득세법 제14조", get_settings())
+    result = await retrieve_simple("법인세법 제52조와 소득세법 제14조", get_settings())
 
     assert hydrate_calls == [["art_graph_only"]]
     result_ids = {c.chunk_id for c in result}
@@ -150,17 +150,17 @@ async def test_retrieve_simple_no_hydration_when_graph_chunk_already_in_pool(mon
         hydrate_calls.append(chunk_ids)
         return []
 
-    monkeypatch.setattr("app.api.chat.embed_query", fake_embed_query)
-    monkeypatch.setattr("app.api.chat.vector_search", fake_vector_search)
-    monkeypatch.setattr("app.api.chat.keyword_search", fake_keyword_search)
-    monkeypatch.setattr("app.api.chat.rerank", fake_rerank)
-    monkeypatch.setattr("app.api.chat.expand_1hop", fake_expand_1hop)
-    monkeypatch.setattr("app.api.chat.expand_to_parents", fake_expand_to_parents)
-    monkeypatch.setattr("app.api.chat.hydrate_by_ids", fake_hydrate_by_ids)
+    monkeypatch.setattr("app.retrieval.pipeline.embed_query", fake_embed_query)
+    monkeypatch.setattr("app.retrieval.pipeline.vector_search", fake_vector_search)
+    monkeypatch.setattr("app.retrieval.pipeline.keyword_search", fake_keyword_search)
+    monkeypatch.setattr("app.retrieval.pipeline.rerank", fake_rerank)
+    monkeypatch.setattr("app.retrieval.pipeline.expand_1hop", fake_expand_1hop)
+    monkeypatch.setattr("app.retrieval.pipeline.expand_to_parents", fake_expand_to_parents)
+    monkeypatch.setattr("app.retrieval.pipeline.hydrate_by_ids", fake_hydrate_by_ids)
 
-    from app.api.chat import _retrieve_simple
+    from app.retrieval.pipeline import retrieve_simple
     from app.config import get_settings
 
-    await _retrieve_simple("소득세법 제14조", get_settings())
+    await retrieve_simple("소득세법 제14조", get_settings())
 
     assert hydrate_calls == []
