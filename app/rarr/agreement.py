@@ -5,8 +5,8 @@ import time
 from dataclasses import dataclass, field
 
 from app.llm import get_llm_provider
-from app.rarr.claims import parse_ref
 from app.rarr.types import EVIDENCE_SNIPPET_CHARS, Claim, Evidence
+from app.retrieval.refs import parse_ref
 
 _AGREEMENT_SYSTEM = (
     "주어진 주장과 근거 문서를 보고 주장이 근거와 일치하는지 판단하세요. "
@@ -27,7 +27,7 @@ def _citations_grounded(cited_refs: list[str], supporting: list[Evidence]) -> bo
     """인용된 ref가 모두 지지 근거의 ref에 포함되는가 (조 단위 정규화).
 
     법명은 정확하지만 무관한 근거를 인용하는 오귀속을 잡는다. 존재 자체의
-    검증(할루시네이션 여부)은 verify_citations(C1) 소관이라 여기선 다루지 않고,
+    검증(할루시네이션 여부)은 verify_refs_exist(C1) 소관이라 여기선 다루지 않고,
     파싱 불가 ref는 집합에서 제외한다. cited_refs가 없으면 trivially True.
     """
     cited = {c for c in (parse_ref(r) for r in cited_refs) if c is not None}

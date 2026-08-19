@@ -6,15 +6,7 @@ import time
 
 from app.llm import get_llm_provider
 from app.rarr.types import Claim
-
-# 조문 번호: "XXX법 제N조" 형식
-_RE_ARTICLE = re.compile(r"(?P<law>[\w가-힣]+법)\s*(?P<article>제\d+조)(?:\s*제\d+항)?")
-# 판례 번호: 연도+사건부호(화이트리스트)+번호 (예: 2018두12345, 2021도1234)
-# 사건부호로 한정하지 않으면 "2018년6월15일" 같은 날짜 표현의 "2018년6"이
-# 오탐되어 C3 안전망이 draft 답변 본문을 훼손한다(#6).
-_RE_CASE = re.compile(
-    r"\d{2,4}(?:두|도|다|누|나|가합|가단|고합|고단|구합|구단|재두|후|허|헌[가-마])\d+"
-)
+from app.retrieval.refs import extract_refs
 
 _DECOMPOSE_SYSTEM = (
     "주어진 세법 답변을 독립적인(decontextualized) 원자 주장(atomic claim) 목록으로 분해하세요. "
@@ -35,34 +27,6 @@ def _split_sentences(text: str) -> list[str]:
     """
     parts = [p.strip() for p in _RE_SENTENCE_SPLIT.split(text)]
     return [p for p in parts if p]
-
-
-def _extract_refs(text: str) -> list[str]:
-    matches = list(_RE_ARTICLE.finditer(text)) + list(_RE_CASE.finditer(text))
-    seen: set[str] = set()
-    result: list[str] = []
-    for m in matches:
-        r = m.group(0).strip()
-        if r not in seen:
-            seen.add(r)
-            result.append(r)
-    return result
-
-
-def parse_ref(ref: str) -> tuple[str, tuple[str, ...]] | None:
-    """ref 문자열 → 구조적 동등 매칭용 (kind, params).
-
-    ("article", (law_name, article_no)) | ("case", (case_no,)) | None(파싱 불가).
-    추출(_extract_refs)과 같은 정규식을 써서 divergence를 방지한다.
-    항(제N항)은 소비만 하고 존재 판정은 조 단위로 한다.
-    """
-    ref = ref.strip()
-    m = _RE_ARTICLE.match(ref)
-    if m:
-        return "article", (m.group("law"), m.group("article"))
-    if _RE_CASE.fullmatch(ref):
-        return "case", (ref,)
-    return None
 
 
 async def decompose_claims(draft_text: str, deadline: float | None = None) -> list[Claim]:
@@ -91,7 +55,7 @@ async def decompose_claims(draft_text: str, deadline: float | None = None) -> li
             )
             items = json.loads(raw.strip())
             claims = [
-                Claim(text=item["text"], cited_refs=_extract_refs(item["text"]))
+                Claim(text=item["text"], cited_refs=extract_refs(item["text"]))
                 for item in items
                 if isinstance(item, dict) and item.get("text")
             ]
@@ -102,5 +66,5 @@ async def decompose_claims(draft_text: str, deadline: float | None = None) -> li
 
     sentences = _split_sentences(draft_text)
     if not sentences:
-        return [Claim(text=draft_text, cited_refs=_extract_refs(draft_text))]
-    return [Claim(text=s, cited_refs=_extract_refs(s)) for s in sentences]
+        return [Claim(text=draft_text, cited_refs=extract_refs(draft_text))]
+    return [Claim(text=s, cited_refs=extract_refs(s)) for s in sentences]

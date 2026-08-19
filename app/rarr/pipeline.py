@@ -8,8 +8,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from app.rarr.agreement import check_agreement
-from app.rarr.citation import verify_citations
-from app.rarr.claims import _extract_refs, decompose_claims
+from app.rarr.claims import decompose_claims
 from app.rarr.debug import build_debug_trace
 from app.rarr.draft import draft
 from app.rarr.edit import edit_claim
@@ -22,6 +21,7 @@ from app.reasoning.answer_builder import (
     build_warning_message,
     first_line,
 )
+from app.retrieval.refs import extract_refs, verify_refs_exist
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +121,7 @@ async def _process_claim(
     research_ms = int((time.monotonic() - t_research) * 1000)
 
     t_agreement = time.monotonic()
-    citation_map = await verify_citations(claim.cited_refs)
+    citation_map = await verify_refs_exist(claim.cited_refs)
 
     # 할루시네이션 인용이 있으면 agree 강제 False (agreement 앞 prune)
     has_hallucination = any(not exists for exists in citation_map.values())
@@ -142,8 +142,8 @@ async def _process_claim(
     if revised_text == claim.text:
         revised_refs, revised_map = claim.cited_refs, citation_map
     else:
-        revised_refs = _extract_refs(revised_text)
-        revised_map = await verify_citations(revised_refs)
+        revised_refs = extract_refs(revised_text)
+        revised_map = await verify_refs_exist(revised_refs)
     edit_ms = int((time.monotonic() - t_edit) * 1000)
 
     # C3: 최종 텍스트에 남은 미검증 ref는 결정론적으로 제거 — LLM이 [정정:]을 안 붙여도 안전망 작동.

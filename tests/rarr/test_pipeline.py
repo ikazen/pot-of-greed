@@ -29,7 +29,7 @@ def _noop_run_rarr_parts(monkeypatch):
     async def fake_research_claim(claim, mode, settings, deadline, search_semaphore=None):
         return [_make_evidence()]
 
-    async def fake_verify_citations(refs):
+    async def fake_verify_refs_exist(refs):
         return {}
 
     from app.rarr.agreement import AgreementResult
@@ -43,7 +43,7 @@ def _noop_run_rarr_parts(monkeypatch):
     monkeypatch.setattr(pipeline_mod, "draft", fake_draft)
     monkeypatch.setattr(pipeline_mod, "decompose_claims", fake_decompose_claims)
     monkeypatch.setattr(pipeline_mod, "research_claim", fake_research_claim)
-    monkeypatch.setattr(pipeline_mod, "verify_citations", fake_verify_citations)
+    monkeypatch.setattr(pipeline_mod, "verify_refs_exist", fake_verify_refs_exist)
     monkeypatch.setattr(pipeline_mod, "check_agreement", fake_check_agreement)
     monkeypatch.setattr(pipeline_mod, "edit_claim", fake_edit_claim)
 
@@ -103,7 +103,7 @@ async def test_run_rarr_builds_warnings_from_validity_flag(monkeypatch):
     async def fake_research_claim(claim, mode, settings, deadline, search_semaphore=None):
         return [_make_evidence(validity_flag="overruled")]
 
-    async def fake_verify_citations(refs):
+    async def fake_verify_refs_exist(refs):
         return {}
 
     from app.rarr.agreement import AgreementResult
@@ -117,7 +117,7 @@ async def test_run_rarr_builds_warnings_from_validity_flag(monkeypatch):
     monkeypatch.setattr(pipeline_mod, "draft", fake_draft)
     monkeypatch.setattr(pipeline_mod, "decompose_claims", fake_decompose_claims)
     monkeypatch.setattr(pipeline_mod, "research_claim", fake_research_claim)
-    monkeypatch.setattr(pipeline_mod, "verify_citations", fake_verify_citations)
+    monkeypatch.setattr(pipeline_mod, "verify_refs_exist", fake_verify_refs_exist)
     monkeypatch.setattr(pipeline_mod, "check_agreement", fake_check_agreement)
     monkeypatch.setattr(pipeline_mod, "edit_claim", fake_edit_claim)
 
@@ -141,7 +141,7 @@ async def test_run_rarr_tracks_hallucinated_refs(monkeypatch):
     async def fake_research_claim(claim, mode, settings, deadline, search_semaphore=None):
         return [_make_evidence()]
 
-    async def fake_verify_citations(refs):
+    async def fake_verify_refs_exist(refs):
         return {"소득세법 제999조": False}  # 할루시네이션
 
     from app.rarr.agreement import AgreementResult
@@ -155,7 +155,7 @@ async def test_run_rarr_tracks_hallucinated_refs(monkeypatch):
     monkeypatch.setattr(pipeline_mod, "draft", fake_draft)
     monkeypatch.setattr(pipeline_mod, "decompose_claims", fake_decompose_claims)
     monkeypatch.setattr(pipeline_mod, "research_claim", fake_research_claim)
-    monkeypatch.setattr(pipeline_mod, "verify_citations", fake_verify_citations)
+    monkeypatch.setattr(pipeline_mod, "verify_refs_exist", fake_verify_refs_exist)
     monkeypatch.setattr(pipeline_mod, "check_agreement", fake_check_agreement)
     monkeypatch.setattr(pipeline_mod, "edit_claim", fake_edit_claim)
 
@@ -184,7 +184,7 @@ async def test_run_rarr_max_claims_cap(monkeypatch):
         processed_claims.append(claim.text)
         return [_make_evidence()]
 
-    async def fake_verify_citations(refs):
+    async def fake_verify_refs_exist(refs):
         return {}
 
     from app.rarr.agreement import AgreementResult
@@ -198,7 +198,7 @@ async def test_run_rarr_max_claims_cap(monkeypatch):
     monkeypatch.setattr(pipeline_mod, "draft", fake_draft)
     monkeypatch.setattr(pipeline_mod, "decompose_claims", fake_decompose_claims)
     monkeypatch.setattr(pipeline_mod, "research_claim", fake_research_claim)
-    monkeypatch.setattr(pipeline_mod, "verify_citations", fake_verify_citations)
+    monkeypatch.setattr(pipeline_mod, "verify_refs_exist", fake_verify_refs_exist)
     monkeypatch.setattr(pipeline_mod, "check_agreement", fake_check_agreement)
     monkeypatch.setattr(pipeline_mod, "edit_claim", fake_edit_claim)
 
@@ -227,7 +227,7 @@ async def test_run_rarr_max_claims_cap_marks_deferred(monkeypatch):
     async def fake_research_claim(claim, mode, settings, deadline, search_semaphore=None):
         return [_make_evidence()]
 
-    async def fake_verify_citations(refs):
+    async def fake_verify_refs_exist(refs):
         return {}
 
     from app.rarr.agreement import AgreementResult
@@ -241,7 +241,7 @@ async def test_run_rarr_max_claims_cap_marks_deferred(monkeypatch):
     monkeypatch.setattr(pipeline_mod, "draft", fake_draft)
     monkeypatch.setattr(pipeline_mod, "decompose_claims", fake_decompose_claims)
     monkeypatch.setattr(pipeline_mod, "research_claim", fake_research_claim)
-    monkeypatch.setattr(pipeline_mod, "verify_citations", fake_verify_citations)
+    monkeypatch.setattr(pipeline_mod, "verify_refs_exist", fake_verify_refs_exist)
     monkeypatch.setattr(pipeline_mod, "check_agreement", fake_check_agreement)
     monkeypatch.setattr(pipeline_mod, "edit_claim", fake_edit_claim)
 
@@ -302,7 +302,7 @@ async def test_run_rarr_decompose_budget_isolated_from_mode_budget(monkeypatch):
         research_deadlines.append(deadline)
         return [_make_evidence()]
 
-    async def fake_verify_citations(refs):
+    async def fake_verify_refs_exist(refs):
         return {}
 
     from app.rarr.agreement import AgreementResult
@@ -316,7 +316,7 @@ async def test_run_rarr_decompose_budget_isolated_from_mode_budget(monkeypatch):
     monkeypatch.setattr(pipeline_mod, "draft", fake_draft)
     monkeypatch.setattr(pipeline_mod, "decompose_claims", slow_decompose_claims)
     monkeypatch.setattr(pipeline_mod, "research_claim", fake_research_claim)
-    monkeypatch.setattr(pipeline_mod, "verify_citations", fake_verify_citations)
+    monkeypatch.setattr(pipeline_mod, "verify_refs_exist", fake_verify_refs_exist)
     monkeypatch.setattr(pipeline_mod, "check_agreement", fake_check_agreement)
     monkeypatch.setattr(pipeline_mod, "edit_claim", fake_edit_claim)
 
@@ -362,7 +362,7 @@ async def test_run_rarr_default_max_claims_caps_verification(monkeypatch):
         processed.append(claim.text)
         return [_make_evidence()]
 
-    async def fake_verify_citations(refs):
+    async def fake_verify_refs_exist(refs):
         return {}
 
     from app.rarr.agreement import AgreementResult
@@ -376,7 +376,7 @@ async def test_run_rarr_default_max_claims_caps_verification(monkeypatch):
     monkeypatch.setattr(pipeline_mod, "draft", fake_draft)
     monkeypatch.setattr(pipeline_mod, "decompose_claims", fake_decompose_claims)
     monkeypatch.setattr(pipeline_mod, "research_claim", fake_research_claim)
-    monkeypatch.setattr(pipeline_mod, "verify_citations", fake_verify_citations)
+    monkeypatch.setattr(pipeline_mod, "verify_refs_exist", fake_verify_refs_exist)
     monkeypatch.setattr(pipeline_mod, "check_agreement", fake_check_agreement)
     monkeypatch.setattr(pipeline_mod, "edit_claim", fake_edit_claim)
 
@@ -410,7 +410,7 @@ async def test_run_rarr_removes_hallucination_newly_introduced_by_edit(monkeypat
     async def fake_research_claim(claim, mode, settings, deadline, search_semaphore=None):
         return [_make_evidence()]
 
-    async def fake_verify_citations(refs):
+    async def fake_verify_refs_exist(refs):
         # 실재 코퍼스: 소득세법 제89조만. 나머지(edit가 심은 판례 등)는 전부 미검증.
         return {ref: (ref == "소득세법 제89조") for ref in refs}
 
@@ -426,7 +426,7 @@ async def test_run_rarr_removes_hallucination_newly_introduced_by_edit(monkeypat
     monkeypatch.setattr(pipeline_mod, "draft", fake_draft)
     monkeypatch.setattr(pipeline_mod, "decompose_claims", fake_decompose_claims)
     monkeypatch.setattr(pipeline_mod, "research_claim", fake_research_claim)
-    monkeypatch.setattr(pipeline_mod, "verify_citations", fake_verify_citations)
+    monkeypatch.setattr(pipeline_mod, "verify_refs_exist", fake_verify_refs_exist)
     monkeypatch.setattr(pipeline_mod, "check_agreement", fake_check_agreement)
     monkeypatch.setattr(pipeline_mod, "edit_claim", fake_edit_claim)
 
@@ -456,7 +456,7 @@ async def test_run_rarr_removes_hallucination_edit_failed_to_correct(monkeypatch
     async def fake_research_claim(claim, mode, settings, deadline, search_semaphore=None):
         return [_make_evidence()]
 
-    async def fake_verify_citations(refs):
+    async def fake_verify_refs_exist(refs):
         return {ref: False for ref in refs}  # 전부 미실재
 
     from app.rarr.agreement import AgreementResult
@@ -471,7 +471,7 @@ async def test_run_rarr_removes_hallucination_edit_failed_to_correct(monkeypatch
     monkeypatch.setattr(pipeline_mod, "draft", fake_draft)
     monkeypatch.setattr(pipeline_mod, "decompose_claims", fake_decompose_claims)
     monkeypatch.setattr(pipeline_mod, "research_claim", fake_research_claim)
-    monkeypatch.setattr(pipeline_mod, "verify_citations", fake_verify_citations)
+    monkeypatch.setattr(pipeline_mod, "verify_refs_exist", fake_verify_refs_exist)
     monkeypatch.setattr(pipeline_mod, "check_agreement", fake_check_agreement)
     monkeypatch.setattr(pipeline_mod, "edit_claim", fake_edit_claim)
 
@@ -503,7 +503,7 @@ async def test_process_claim_deadline_exceeded_degrades_without_llm_calls(monkey
     async def fake_research_claim(claim, mode, settings, deadline, search_semaphore=None):
         return [_make_evidence()]
 
-    async def fake_verify_citations(refs):
+    async def fake_verify_refs_exist(refs):
         return {}
 
     async def real_check_agreement(claim, evidence, deadline=None):
@@ -523,7 +523,7 @@ async def test_process_claim_deadline_exceeded_degrades_without_llm_calls(monkey
 
     import app.rarr.pipeline as pipeline_mod
     monkeypatch.setattr(pipeline_mod, "research_claim", fake_research_claim)
-    monkeypatch.setattr(pipeline_mod, "verify_citations", fake_verify_citations)
+    monkeypatch.setattr(pipeline_mod, "verify_refs_exist", fake_verify_refs_exist)
     monkeypatch.setattr(pipeline_mod, "check_agreement", real_check_agreement)
     monkeypatch.setattr(pipeline_mod, "edit_claim", real_edit_claim)
 
@@ -567,7 +567,7 @@ async def test_run_rarr_scrubs_hallucinated_ref_from_draft_answer(monkeypatch):
     async def fake_research_claim(claim, mode, settings, deadline, search_semaphore=None):
         return [_make_evidence()]
 
-    async def fake_verify_citations(refs):
+    async def fake_verify_refs_exist(refs):
         return {ref: (ref == "소득세법 제89조") for ref in refs}
 
     from app.rarr.agreement import AgreementResult
@@ -581,7 +581,7 @@ async def test_run_rarr_scrubs_hallucinated_ref_from_draft_answer(monkeypatch):
     monkeypatch.setattr(pipeline_mod, "draft", fake_draft)
     monkeypatch.setattr(pipeline_mod, "decompose_claims", fake_decompose_claims)
     monkeypatch.setattr(pipeline_mod, "research_claim", fake_research_claim)
-    monkeypatch.setattr(pipeline_mod, "verify_citations", fake_verify_citations)
+    monkeypatch.setattr(pipeline_mod, "verify_refs_exist", fake_verify_refs_exist)
     monkeypatch.setattr(pipeline_mod, "check_agreement", fake_check_agreement)
     monkeypatch.setattr(pipeline_mod, "edit_claim", fake_edit_claim)
 
@@ -608,7 +608,7 @@ async def test_run_rarr_unverified_claims_get_aggregate_warning(monkeypatch):
     async def fake_research_claim(claim, mode, settings, deadline, search_semaphore=None):
         return []  # 근거 전무
 
-    async def fake_verify_citations(refs):
+    async def fake_verify_refs_exist(refs):
         return {}
 
     from app.rarr.agreement import AgreementResult
@@ -622,7 +622,7 @@ async def test_run_rarr_unverified_claims_get_aggregate_warning(monkeypatch):
     monkeypatch.setattr(pipeline_mod, "draft", fake_draft)
     monkeypatch.setattr(pipeline_mod, "decompose_claims", fake_decompose_claims)
     monkeypatch.setattr(pipeline_mod, "research_claim", fake_research_claim)
-    monkeypatch.setattr(pipeline_mod, "verify_citations", fake_verify_citations)
+    monkeypatch.setattr(pipeline_mod, "verify_refs_exist", fake_verify_refs_exist)
     monkeypatch.setattr(pipeline_mod, "check_agreement", fake_check_agreement)
     monkeypatch.setattr(pipeline_mod, "edit_claim", fake_edit_claim)
 
@@ -660,7 +660,7 @@ async def test_process_claim_corrected_requires_hallucinated_ref_removed_from_fi
 
     verify_calls = []
 
-    async def fake_verify_citations(refs):
+    async def fake_verify_refs_exist(refs):
         verify_calls.append(list(refs))
         # 최초 호출(citation_map)은 미실재로, 재검증 호출은 (불일치하게) 실재로 답해
         # C3 제거가 발동하지 않는 상황을 재현 — 그래도 M2 산식은 최종 텍스트에
@@ -676,7 +676,7 @@ async def test_process_claim_corrected_requires_hallucinated_ref_removed_from_fi
         return "소득세법 제999조 주장 [정정: 오타 수정]", evidence, ["[정정: 오타 수정]"]
 
     monkeypatch.setattr(pipeline_mod, "research_claim", fake_research_claim)
-    monkeypatch.setattr(pipeline_mod, "verify_citations", fake_verify_citations)
+    monkeypatch.setattr(pipeline_mod, "verify_refs_exist", fake_verify_refs_exist)
     monkeypatch.setattr(pipeline_mod, "check_agreement", fake_check_agreement)
     monkeypatch.setattr(pipeline_mod, "edit_claim", fake_edit_claim)
 
@@ -714,7 +714,7 @@ async def test_run_rarr_sources_sorted_by_score_descending(monkeypatch):
             return [_scored_evidence("low", 0.3)]
         return [_scored_evidence("high", 0.95)]
 
-    async def fake_verify_citations(refs):
+    async def fake_verify_refs_exist(refs):
         return {}
 
     from app.rarr.agreement import AgreementResult
@@ -728,7 +728,7 @@ async def test_run_rarr_sources_sorted_by_score_descending(monkeypatch):
     monkeypatch.setattr(pipeline_mod, "draft", fake_draft)
     monkeypatch.setattr(pipeline_mod, "decompose_claims", fake_decompose_claims)
     monkeypatch.setattr(pipeline_mod, "research_claim", fake_research_claim)
-    monkeypatch.setattr(pipeline_mod, "verify_citations", fake_verify_citations)
+    monkeypatch.setattr(pipeline_mod, "verify_refs_exist", fake_verify_refs_exist)
     monkeypatch.setattr(pipeline_mod, "check_agreement", fake_check_agreement)
     monkeypatch.setattr(pipeline_mod, "edit_claim", fake_edit_claim)
 
@@ -796,7 +796,7 @@ async def test_run_rarr_bounds_total_search_concurrency_across_claims(monkeypatc
     async def fake_decompose_claims(text, deadline=None):
         return [Claim(text=f"주장{i}") for i in range(4)]
 
-    async def fake_verify_citations(refs):
+    async def fake_verify_refs_exist(refs):
         return {}
 
     async def fake_check_agreement(claim, evidence, deadline=None):
@@ -807,7 +807,7 @@ async def test_run_rarr_bounds_total_search_concurrency_across_claims(monkeypatc
 
     monkeypatch.setattr(pipeline_mod, "draft", fake_draft)
     monkeypatch.setattr(pipeline_mod, "decompose_claims", fake_decompose_claims)
-    monkeypatch.setattr(pipeline_mod, "verify_citations", fake_verify_citations)
+    monkeypatch.setattr(pipeline_mod, "verify_refs_exist", fake_verify_refs_exist)
     monkeypatch.setattr(pipeline_mod, "check_agreement", fake_check_agreement)
     monkeypatch.setattr(pipeline_mod, "edit_claim", fake_edit_claim)
 
@@ -1070,7 +1070,7 @@ async def test_run_rarr_debug_on_includes_claim_trace(monkeypatch):
     async def fake_research_claim(claim, mode, settings, deadline, search_semaphore=None):
         return [_make_evidence()]
 
-    async def fake_verify_citations(refs):
+    async def fake_verify_refs_exist(refs):
         return {ref: False for ref in refs}
 
     async def fake_check_agreement(claim, evidence, deadline=None):
@@ -1086,7 +1086,7 @@ async def test_run_rarr_debug_on_includes_claim_trace(monkeypatch):
     monkeypatch.setattr(pipeline_mod, "draft", fake_draft)
     monkeypatch.setattr(pipeline_mod, "decompose_claims", fake_decompose_claims)
     monkeypatch.setattr(pipeline_mod, "research_claim", fake_research_claim)
-    monkeypatch.setattr(pipeline_mod, "verify_citations", fake_verify_citations)
+    monkeypatch.setattr(pipeline_mod, "verify_refs_exist", fake_verify_refs_exist)
     monkeypatch.setattr(pipeline_mod, "check_agreement", fake_check_agreement)
     monkeypatch.setattr(pipeline_mod, "edit_claim", fake_edit_claim)
 

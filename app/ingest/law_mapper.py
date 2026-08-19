@@ -75,7 +75,10 @@ def map_law(raw: RawLaw) -> MappedLaw:
             )
 
     for art in raw.articles:
-        art_no_label = f"제{art.no}조"
+        # art.no는 "18의3"(가지번호 포함) 형식 — "제N조의M" 순서로 조립해야
+        # 정상 표기가 된다(#40, "제18의3조"는 인용 검증 정규식과 어긋난다).
+        base_no, _, branch_no = art.no.partition("의")
+        art_no_label = f"제{base_no}조의{branch_no}" if branch_no else f"제{base_no}조"
         parent_id = f"art_{raw.law_name}_{art.no}"
         eff_from = _to_date(art.effective_from)
 
