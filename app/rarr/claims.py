@@ -4,9 +4,10 @@ import json
 import re
 import time
 
+from lawcorpus.refs import extract_refs
+
 from app.llm import get_llm_provider
 from app.rarr.types import Claim
-from app.retrieval.refs import extract_refs
 
 _DECOMPOSE_SYSTEM = (
     "주어진 세법 답변을 독립적인(decontextualized) 원자 주장(atomic claim) 목록으로 분해하세요. "

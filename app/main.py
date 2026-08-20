@@ -3,9 +3,10 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from lawcorpus.db.pg import init_pg, close_pg
+from lawcorpus.db.neo4j import init_neo4j, close_neo4j
+
 from app.config import get_settings
-from app.db.pg import init_pg, close_pg
-from app.db.neo4j import init_neo4j, close_neo4j
 from app.auth.routes import router as auth_router
 from app.api.health import router as health_router
 from app.api.chat import router as chat_router

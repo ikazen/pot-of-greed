@@ -4,9 +4,10 @@ import json
 import time
 from dataclasses import dataclass, field
 
+from lawcorpus.refs import parse_ref
+
 from app.llm import get_llm_provider
 from app.rarr.types import EVIDENCE_SNIPPET_CHARS, Claim, Evidence
-from app.retrieval.refs import parse_ref
 
 _AGREEMENT_SYSTEM = (
     "주어진 주장과 근거 문서를 보고 주장이 근거와 일치하는지 판단하세요. "

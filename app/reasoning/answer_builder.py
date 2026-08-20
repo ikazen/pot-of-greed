@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-from app.retrieval.types import Chunk, ValidityFlag
+from lawcorpus.types import Chunk, ValidityFlag
 
 logger = logging.getLogger(__name__)
 

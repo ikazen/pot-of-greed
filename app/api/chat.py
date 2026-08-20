@@ -9,9 +9,10 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from lawcorpus.search import promotion_score
+
 from app.auth.jwt import get_current_user
 from app.config import get_settings
-from app.retrieval.pipeline import promotion_score
 from app.router.mode_classifier import classify, should_promote
 from app.rarr.pipeline import run_rarr
 

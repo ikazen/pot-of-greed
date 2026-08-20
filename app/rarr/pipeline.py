@@ -7,6 +7,8 @@ import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from lawcorpus.refs import extract_refs, verify_refs_exist
+
 from app.rarr.agreement import check_agreement
 from app.rarr.claims import decompose_claims
 from app.rarr.debug import build_debug_trace
@@ -21,7 +23,6 @@ from app.reasoning.answer_builder import (
     build_warning_message,
     first_line,
 )
-from app.retrieval.refs import extract_refs, verify_refs_exist
 
 logger = logging.getLogger(__name__)
 
@@ -317,7 +318,7 @@ async def run_rarr(
         legal_reasoning_applied = False
         if mode == "complex" and warnings:
             from app.reasoning.answer_builder import legal_reasoning_layer
-            from app.retrieval.types import Chunk
+            from lawcorpus.types import Chunk
 
             # Evidence → Chunk (legal_reasoning_layer 인터페이스 호환)
             chunks_for_reasoning: list[Chunk] = [

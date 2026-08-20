@@ -8,6 +8,8 @@
 - 온프레미스 Ollama (`qwen3-embedding:8b`, `bge-reranker-v2-m3`)
 - Gemini API 키 (Google AI Studio)
 - Ollama Cloud 엔드포인트 + API 키 (gpt-oss:20b aux 모델용)
+- 세법/판례 코퍼스는 [`lawcorpus`](https://github.com/ikazen/law-corpus) 라이브러리가 관리 — 이 repo의
+  `PG_DSN`/`NEO4J_*`는 lawcorpus가 적재한 것과 **같은 DB/그래프**를 가리켜야 한다
 
 ## 설정
 
@@ -19,14 +21,13 @@ cp .env.example .env
 
 | 항목 | 설명 |
 |---|---|
-| `PG_DSN` | PostgreSQL 연결 문자열 |
-| `NEO4J_URI` / `NEO4J_PASSWORD` | Neo4j 연결 |
+| `PG_DSN` | PostgreSQL 연결 문자열 (lawcorpus와 동일 DB) |
+| `NEO4J_URI` / `NEO4J_PASSWORD` | Neo4j 연결 (lawcorpus와 동일 그래프) |
 | `OLLAMA_BASE_URL` | 온프레미스 Ollama (임베딩·리랭커) |
 | `GEMINI_API_KEY` | Gemini API 키 (draft/edit/reason) |
 | `OLLAMA_CLOUD_BASE_URL` / `OLLAMA_API_KEY` | Ollama Cloud (aux: gpt-oss:20b) |
 | `JWT_SECRET` | `openssl rand -hex 32` 로 생성 |
 | `AUTH_USERS` | `username:bcrypt_hash` 형식, 콤마 구분 |
-| `LAW_API_OC` | 법제처 OPEN API(open.law.go.kr) 신청 ID. 인제스트 스크립트 실행 전 필수 |
 
 bcrypt 해시 생성:
 ```bash
@@ -41,8 +42,15 @@ CHAINLIT_DB_DSN=postgresql+asyncpg://potofgreed:<pw>@postgres:5432/potofgreed
 
 ## DB 스키마 적용
 
+세법/판례 코퍼스 스키마(article_chunks/case_chunks + Neo4j 제약)는 lawcorpus 쪽에서 적용한다:
+
 ```bash
-psql "$PG_DSN" -f sql/schema.sql
+lawcorpus apply-schema   # LAWCORPUS_PG_DSN/LAWCORPUS_NEO4J_* 필요
+```
+
+Chainlit UI 전용 테이블만 이 repo가 소유:
+
+```bash
 psql "$PG_DSN" -f sql/chainlit_schema.sql
 ```
 
@@ -65,32 +73,19 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-## 샘플 데이터 적재
+## 샘플/실 데이터 적재
+
+데이터 적재는 전부 lawcorpus CLI로 한다 (`LAWCORPUS_LAW_API_OC` 등은 lawcorpus 쪽 `.env` 참조):
 
 ```bash
-python scripts/load_sample.py
+lawcorpus load-sample                                    # 개발용 소량 샘플
+lawcorpus ingest-laws --law 소득세법 --law 법인세법 --law 부가가치세법
+lawcorpus ingest-cases --query 소득세 --query 법인세 --query 부가가치세
+lawcorpus backfill                                        # 임베딩 채우기
+lawcorpus update-validity                                 # validity_flag 계산
 ```
 
-조문 3~5개, 판례 3~5개, 관계(CITES/BASED_ON/OVERRULED_BY 각 1건)를 적재하고 임베딩을 채운다.
-
-## 실 데이터 수집 (법제처 OPEN API, 결정 D)
-
-`LAW_API_OC` 설정 후 순서대로 실행:
-
-```bash
-python -m scripts.ingest_laws      # 조문 수입 (핵심 3법: 소득세법/법인세법/부가가치세법)
-python -m scripts.ingest_cases     # 판례 수입 + 인용/근거조문 그래프
-python -m scripts.backfill_embeddings  # 임베딩 채우기
-python -m scripts.update_validity  # validity_flag 계산
-```
-
-## validity_flag 갱신
-
-```bash
-python scripts/update_validity.py
-```
-
-Neo4j 그래프를 읽어 `case_chunks.validity_flag`를 계산·업데이트한다. 데이터 변경 시 재실행.
+자세한 옵션은 [lawcorpus docs/setup.md](https://github.com/ikazen/law-corpus/blob/main/docs/setup.md) 참조.
 
 ## RARR eval 하니스
 
