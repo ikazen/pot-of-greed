@@ -14,8 +14,8 @@ from lawcorpus.types import Chunk
 async def search_complex(query: str, settings) -> list[Chunk]:
     """§5.2 1~4단계 단일 패스: 분해 → 도구 라우팅 → HyDE + 하이브리드 검색 → Neo4j 2홉.
 
-    질의분해(decompose)와 HyDE 둘 다 LLM 호출이라 law-corpus 라이브러리에 넣지 않고
-    여기(app/rag/)에 둔다 — law-corpus 결정 A(LLM 비의존 원칙) 참조.
+    질의분해(decompose)와 HyDE 둘 다 LLM 호출이라 the-book-of-moon 라이브러리에 넣지 않고
+    여기(app/rag/)에 둔다 — the-book-of-moon 결정 A(LLM 비의존 원칙) 참조.
     """
     subqueries = await decompose(query)
 
