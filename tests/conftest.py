@@ -5,7 +5,7 @@ from dataclasses import replace
 import pytest
 import httpx
 
-from app.retrieval.types import Chunk
+from lawcorpus.types import Chunk
 
 # ---------------------------------------------------------------------------
 # Required env vars for Settings
@@ -19,7 +19,6 @@ _TEST_ENV = {
     "OLLAMA_CLOUD_BASE_URL": "http://localhost:11435",
     "JWT_SECRET": "test-secret-key",
     "AUTH_USERS": "testuser:$2b$12$FAKEHASHFORTESTINGwwwwuO",
-    "LAW_API_OC": "test-oc",
     # 테스트는 ollama provider 고정 — respx로 /api/chat URL 직접 모킹하는 기존 테스트 호환
     "LLM_PROVIDER": "ollama",
     "GEMINI_API_KEY": "",
@@ -89,31 +88,35 @@ def low_score_chunks():
 
 # ---------------------------------------------------------------------------
 # Retrieval patches
-# Patch in app.retrieval.pipeline where names are imported (not source modules).
+# lawcorpus.search(promotion_score/hybrid_search)와 app.rag.complex_search(search_complex)
+# 양쪽 다 원자 함수를 모듈 최상단에서 import해 자기 네임스페이스에 바인딩하므로,
+# 각자의 네임스페이스에 patch해야 한다(소스 모듈에 patch하면 안 먹는다).
 # ---------------------------------------------------------------------------
 
-@pytest.fixture
-def patch_retrieval(monkeypatch, sample_chunks):
+def _install_retrieval_fakes(monkeypatch, chunks, score):
     async def fake_embed_query(text, settings):
         return [0.1] * 1024
 
     async def fake_vector_search(embedding, top_k=30, only_current=True):
-        return sample_chunks
+        return chunks
 
     async def fake_keyword_search(query, top_k=30):
-        return sample_chunks
+        return chunks
 
-    async def fake_rerank(query, chunks, settings, top_k=None):
+    async def fake_rerank(query, chunks_, settings, top_k=None):
         # 실제 reranker는 항상 relevance score로 .score를 재할당한다(reranker.py).
         # RRF 융합 후 score가 RRF 스케일로 바뀌므로(#9) 여기서도 재할당해야
         # should_promote 임계값(0.5) 비교가 원래 의도한 스케일로 맞는다.
-        result = chunks[:top_k] if top_k else chunks
-        return [replace(c, score=0.85) for c in result]
+        result = chunks_[:top_k] if top_k else chunks_
+        return [replace(c, score=score) for c in result]
 
     async def fake_expand_1hop(chunk_ids):
         return []
 
-    async def fake_expand_to_parents(chunks):
+    async def fake_expand_to_parents(chunks_):
+        return []
+
+    async def fake_hydrate_by_ids(chunk_ids):
         return []
 
     async def fake_hyde_embedding(query, settings):
@@ -123,53 +126,27 @@ def patch_retrieval(monkeypatch, sample_chunks):
         from app.agent.decompose import SubQuery
         return [SubQuery(text=query, tool_hint="hybrid")]
 
-    monkeypatch.setattr("app.retrieval.pipeline.embed_query", fake_embed_query)
-    monkeypatch.setattr("app.retrieval.pipeline.vector_search", fake_vector_search)
-    monkeypatch.setattr("app.retrieval.pipeline.keyword_search", fake_keyword_search)
-    monkeypatch.setattr("app.retrieval.pipeline.rerank", fake_rerank)
-    monkeypatch.setattr("app.retrieval.pipeline.expand_1hop", fake_expand_1hop)
-    monkeypatch.setattr("app.retrieval.pipeline.expand_to_parents", fake_expand_to_parents)
-    monkeypatch.setattr("app.retrieval.pipeline.hyde_embedding", fake_hyde_embedding)
-    monkeypatch.setattr("app.retrieval.pipeline.decompose", fake_decompose)
+    for target in ("lawcorpus.search", "app.rag.complex_search"):
+        monkeypatch.setattr(f"{target}.embed_query", fake_embed_query)
+        monkeypatch.setattr(f"{target}.vector_search", fake_vector_search)
+        monkeypatch.setattr(f"{target}.keyword_search", fake_keyword_search)
+    monkeypatch.setattr("lawcorpus.search.rerank", fake_rerank)
+    monkeypatch.setattr("lawcorpus.search.expand_1hop", fake_expand_1hop)
+    monkeypatch.setattr("lawcorpus.search.expand_to_parents", fake_expand_to_parents)
+    monkeypatch.setattr("lawcorpus.search.hydrate_by_ids", fake_hydrate_by_ids)
+    monkeypatch.setattr("app.rag.complex_search.hyde_embedding", fake_hyde_embedding)
+    monkeypatch.setattr("app.rag.complex_search.decompose", fake_decompose)
+
+
+@pytest.fixture
+def patch_retrieval(monkeypatch, sample_chunks):
+    _install_retrieval_fakes(monkeypatch, sample_chunks, score=0.85)
     return sample_chunks
 
 
 @pytest.fixture
 def patch_low_score_retrieval(monkeypatch, low_score_chunks):
-    async def fake_embed_query(text, settings):
-        return [0.1] * 1024
-
-    async def fake_vector_search(embedding, top_k=30, only_current=True):
-        return low_score_chunks
-
-    async def fake_keyword_search(query, top_k=30):
-        return low_score_chunks
-
-    async def fake_rerank(query, chunks, settings, top_k=None):
-        result = chunks[:top_k] if top_k else chunks
-        return [replace(c, score=0.3) for c in result]
-
-    async def fake_expand_1hop(chunk_ids):
-        return []
-
-    async def fake_expand_to_parents(chunks):
-        return []
-
-    async def fake_hyde_embedding(query, settings):
-        return [0.2] * 1024
-
-    async def fake_decompose(query):
-        from app.agent.decompose import SubQuery
-        return [SubQuery(text=query, tool_hint="hybrid")]
-
-    monkeypatch.setattr("app.retrieval.pipeline.embed_query", fake_embed_query)
-    monkeypatch.setattr("app.retrieval.pipeline.vector_search", fake_vector_search)
-    monkeypatch.setattr("app.retrieval.pipeline.keyword_search", fake_keyword_search)
-    monkeypatch.setattr("app.retrieval.pipeline.rerank", fake_rerank)
-    monkeypatch.setattr("app.retrieval.pipeline.expand_1hop", fake_expand_1hop)
-    monkeypatch.setattr("app.retrieval.pipeline.expand_to_parents", fake_expand_to_parents)
-    monkeypatch.setattr("app.retrieval.pipeline.hyde_embedding", fake_hyde_embedding)
-    monkeypatch.setattr("app.retrieval.pipeline.decompose", fake_decompose)
+    _install_retrieval_fakes(monkeypatch, low_score_chunks, score=0.3)
     return low_score_chunks
 
 

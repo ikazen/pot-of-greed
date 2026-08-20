@@ -6,7 +6,7 @@ import pytest
 import respx
 import httpx
 
-from app.retrieval.types import Chunk
+from lawcorpus.types import Chunk
 from app.agent.sufficiency import evaluate, sufficiency_loop, SufficiencyResult
 
 

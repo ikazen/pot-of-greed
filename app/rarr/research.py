@@ -3,10 +3,12 @@ from __future__ import annotations
 import asyncio
 import time
 
+from lawcorpus.retrieval.vector_search import hydrate_by_ids
+from lawcorpus.search import hybrid_search
+from lawcorpus.types import Chunk
+
+from app.rag.complex_search import search_complex
 from app.rarr.types import Claim, Evidence
-from app.retrieval.pipeline import retrieve_simple, search_complex
-from app.retrieval.types import Chunk
-from app.retrieval.vector_search import hydrate_by_ids
 
 
 def _chunk_to_evidence(chunk: Chunk) -> Evidence:
@@ -24,7 +26,7 @@ def _chunk_to_evidence(chunk: Chunk) -> Evidence:
 
 
 async def _research_simple(claim: Claim, settings) -> list[Chunk]:
-    return await retrieve_simple(claim.text, settings)
+    return await hybrid_search(claim.text, settings)
 
 
 async def _research_complex(
@@ -33,9 +35,9 @@ async def _research_complex(
     deadline: float,
     search_semaphore: asyncio.Semaphore | None = None,
 ) -> list[Chunk]:
-    from app.retrieval.reranker import rerank
-    from app.retrieval.graph_expand import expand_2hop, filter_by_transaction_date
-    from app.retrieval.context_expand import expand_to_parents
+    from lawcorpus.retrieval.reranker import rerank
+    from lawcorpus.retrieval.graph_expand import expand_2hop, filter_by_transaction_date
+    from lawcorpus.retrieval.context_expand import expand_to_parents
     # app.api.chat이 app.rarr.pipeline(→ research)을 임포트하므로, 이 방향의
     # 참조는 최상단에 두면 순환 임포트가 된다 — 함수 호출 시점 지연 임포트로 유지.
     from app.api.chat import _extract_transaction_date

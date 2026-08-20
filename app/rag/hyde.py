@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from lawcorpus.retrieval.embedder import embed_query
+
 from app.llm import get_llm_provider
-from app.retrieval.embedder import embed_query
 
 _HYDE_SYSTEM = (
     "당신은 세법 전문가입니다. "

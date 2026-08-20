@@ -836,9 +836,9 @@ async def test_run_rarr_bounds_total_search_concurrency_across_claims(monkeypatc
 
     import app.rarr.query_gen as qg_mod
     import app.rarr.research as research_mod
-    from app.retrieval import reranker as reranker_mod
-    from app.retrieval import graph_expand as ge_mod
-    from app.retrieval import context_expand as ce_mod
+    from lawcorpus.retrieval import reranker as reranker_mod
+    from lawcorpus.retrieval import graph_expand as ge_mod
+    from lawcorpus.retrieval import context_expand as ce_mod
 
     monkeypatch.setattr(qg_mod, "generate_questions", fake_generate_questions)
     monkeypatch.setattr(research_mod, "search_complex", fake_search_complex)

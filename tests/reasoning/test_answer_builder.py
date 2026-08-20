@@ -5,7 +5,7 @@ import pytest
 import respx
 import httpx
 
-from app.retrieval.types import Chunk
+from lawcorpus.types import Chunk
 from app.reasoning.answer_builder import (
     legal_reasoning_layer,
     build_warning_message, first_line, Warning,

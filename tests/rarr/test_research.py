@@ -7,7 +7,7 @@ from app.rarr.types import Claim, Evidence
 
 
 def _make_chunk(chunk_id="c1", table="article", score=0.9):
-    from app.retrieval.types import Chunk
+    from lawcorpus.types import Chunk
     meta = {"law_name": "소득세법", "article_no": "제89조"} if table == "article" else {"case_no": "2018두123"}
     return Chunk(chunk_id=chunk_id, table=table, text="sample text", score=score, meta=meta)
 
@@ -109,9 +109,9 @@ async def test_research_complex_questions_per_claim_cap(monkeypatch):
     # 패치한다. search_complex는 research.py가 모듈 최상단에서 import해 자기
     # 네임스페이스에 바인딩하므로 research_mod 쪽에 패치해야 한다.
     import app.rarr.query_gen as qg_mod
-    from app.retrieval import reranker as reranker_mod
-    from app.retrieval import graph_expand as ge_mod
-    from app.retrieval import context_expand as ce_mod
+    from lawcorpus.retrieval import reranker as reranker_mod
+    from lawcorpus.retrieval import graph_expand as ge_mod
+    from lawcorpus.retrieval import context_expand as ce_mod
 
     monkeypatch.setattr(qg_mod, "generate_questions", fake_generate_questions)
     monkeypatch.setattr(research_mod, "search_complex", fake_search_complex)
@@ -135,7 +135,7 @@ async def test_research_complex_hydrates_graph_only_chunk(monkeypatch):
     hydrate_by_ids로 본문이 채워져야 한다."""
     import app.rarr.research as research_mod
     from app.rarr.types import Claim
-    from app.retrieval.types import GraphChunk
+    from lawcorpus.types import GraphChunk
 
     found_chunk = _make_chunk("found", table="article", score=0.9)
     graph_only_chunk = _make_chunk("graph_only", table="article", score=0.0)
@@ -162,9 +162,9 @@ async def test_research_complex_hydrates_graph_only_chunk(monkeypatch):
         return [graph_only_chunk]
 
     import app.rarr.query_gen as qg_mod
-    from app.retrieval import reranker as reranker_mod
-    from app.retrieval import graph_expand as ge_mod
-    from app.retrieval import context_expand as ce_mod
+    from lawcorpus.retrieval import reranker as reranker_mod
+    from lawcorpus.retrieval import graph_expand as ge_mod
+    from lawcorpus.retrieval import context_expand as ce_mod
 
     monkeypatch.setattr(qg_mod, "generate_questions", fake_generate_questions)
     monkeypatch.setattr(research_mod, "search_complex", fake_search_complex)

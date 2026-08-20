@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
+from lawcorpus.db.pg import ping_pg
+from lawcorpus.db.neo4j import ping_neo4j
+
 from app.auth.jwt import get_current_user
-from app.db.pg import ping_pg
-from app.db.neo4j import ping_neo4j
 
 router = APIRouter(tags=["health"])
 

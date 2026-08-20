@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 from app.config import get_settings
 from app.llm import get_llm_provider
-from app.retrieval.types import Chunk
+from lawcorpus.types import Chunk
 
 logger = logging.getLogger(__name__)
 

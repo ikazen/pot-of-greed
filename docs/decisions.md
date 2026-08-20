@@ -215,7 +215,9 @@ RAG 기법이지 순수 코퍼스 조회가 아니므로, 공통 repo로 뺄 수
 `graph_expand`(임베딩 벡터·텍스트만 입력, LLM 미호출)는 `retrieval/`에 남고, HyDE처럼 LLM
 응답이 검색 입력 자체가 되는 기법은 `rag/`로 간다.
 
-**미해결**: `app/retrieval/pipeline.py::search_complex`(복잡 모드 하이브리드 검색)가
-`app/rag/hyde.py`를 호출한다 — `pipeline.py` 자체는 law-corpus로 이관될 예정(Milestone B)이라,
-이관 시점에 이 역참조를 어떻게 끊을지(HyDE를 콜백으로 주입? `search_complex`를 HyDE 유무로
-쪼갤?) 결정이 필요하다. Milestone B 착수 시 판단.
+**수정(2026-08-20, #49)**: Milestone B에서 law-corpus로 실제 이관하며 판단 — `search_complex`는
+질의분해(`app.agent.decompose`)와 HyDE 둘 다 LLM 호출이라 애초에 law-corpus로 옮기지 않았다
+(law-corpus 결정 A). `promotion_score`/`hybrid_search`(구 `retrieve_simple`, LLM 미호출)만
+`lawcorpus.search`로 이관하고, `search_complex`는 `app/retrieval/pipeline.py`에서 `app/rag/
+complex_search.py`로 옮겨 이 repo에 잔류시켰다. HyDE 콜백 주입 같은 우회는 필요 없었다 —
+LLM 호출이 하나가 아니라 둘(decompose+hyde)이라 애초에 "일부만 옮기는" 절충이 성립하지 않았다.

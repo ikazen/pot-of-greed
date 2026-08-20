@@ -178,8 +178,8 @@ async def main() -> None:
         sys.exit(1)
 
     from app.config import get_settings
-    from app.db.pg import init_pg, close_pg
-    from app.db.neo4j import init_neo4j, close_neo4j
+    from lawcorpus.db.pg import init_pg, close_pg
+    from lawcorpus.db.neo4j import init_neo4j, close_neo4j
 
     settings = get_settings()
 

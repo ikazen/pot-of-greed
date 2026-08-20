@@ -17,17 +17,18 @@ app/
   api/        FastAPI 엔드포인트 (/chat, /chat/stream, /health, /healthz)
   auth/       JWT 인증, 고정 계정 로그인 (/auth/token)
   rarr/       RARR 파이프라인 (draft→decompose→research→agree→edit→attribution)
-  retrieval/  임베딩·벡터·키워드검색·RRF·리랭킹·그래프확장·오케스트레이션
-  rag/        LLM 기반 검색 기법 (HyDE) — retrieval과 분리된 이유는 docs/decisions.md 결정 O 참조
+  rag/        LLM 기반 검색 기법 (HyDE, search_complex) — lawcorpus에 없는 이유는 docs/decisions.md 결정 O 참조
   agent/      쿼리분해·충분성루프·도구라우팅
   router/     단순/복잡 모드 라우팅
   reasoning/  답변 빌더·법리 검토 (legal_reasoning_layer)
   llm/        LLM provider 추상화 (Gemini / Ollama Cloud)
-  ingest/     법제처 OPEN API 수집·매핑 (조문/판례)
-  db/         PostgreSQL(pgvector) / Neo4j 커넥션
 docs/         설계 문서
 scripts/      개발·운영 도구
 ```
+
+세법/판례 코퍼스 저장·수집·조회(구 `app/{db,ingest,retrieval}`)는
+[`lawcorpus`](https://github.com/ikazen/law-corpus) 공통 라이브러리로 분리됐다. 데이터 적재·스키마 적용은
+`lawcorpus` CLI(`lawcorpus apply-schema` / `ingest-laws` / `ingest-cases` / `backfill` / `update-validity`)로 한다.
 
 ## 개발 도구
 
@@ -37,10 +38,10 @@ python -m scripts.llm_test
 python -m scripts.llm_test "소득세법 제14조 요지는?"
 python -m scripts.llm_test --provider gemini --model gemini-2.5-pro
 
-# 데이터 수집 (법제처 OPEN API, 결정 D)
-python -m scripts.ingest_laws
-python -m scripts.ingest_cases
-python -m scripts.backfill_embeddings
+# 데이터 수집 (법제처 OPEN API) — lawcorpus CLI, LAWCORPUS_* env 필요
+lawcorpus ingest-laws --law 소득세법 --law 법인세법 --law 부가가치세법
+lawcorpus ingest-cases --query 소득세 --query 법인세 --query 부가가치세
+lawcorpus backfill
 
 # RARR eval 하니스 (인프라 가동 시)
 python -m scripts.rarr_eval --mode both --report
