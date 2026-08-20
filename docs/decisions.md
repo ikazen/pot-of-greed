@@ -206,7 +206,7 @@ retired된 것도 확인) 모델 선정 시 블로그·문서보다 `GET /api/ta
 분리. `hyde.py`(HyDE — LLM으로 가상 문서 생성 후 임베딩)를 `app/retrieval/`에서 `app/rag/`로 이동(#48).
 
 **왜**: 세법/판례 코퍼스 저장·수집·조회 계층(`app/{db,ingest,retrieval}`)을 다른 프로젝트와
-공유할 공통 repo(`law-corpus`)로 분리하는 작업 중(Milestone "법령 코퍼스 분리") 발견 —
+공유할 공통 repo(`the-book-of-moon`)로 분리하는 작업 중(Milestone "법령 코퍼스 분리") 발견 —
 `hyde.py`만 유일하게 `app.llm`(Gemini/Ollama 프로바이더 추상화)을 참조해 데이터 계층이면서
 앱의 LLM 설정에 역참조하고 있었다. HyDE는 검색 기법이지만 본질적으로 LLM 호출이 필요한
 RAG 기법이지 순수 코퍼스 조회가 아니므로, 공통 repo로 뺄 수 없는 쪽(`app/rag/`)에 남긴다.
@@ -215,9 +215,9 @@ RAG 기법이지 순수 코퍼스 조회가 아니므로, 공통 repo로 뺄 수
 `graph_expand`(임베딩 벡터·텍스트만 입력, LLM 미호출)는 `retrieval/`에 남고, HyDE처럼 LLM
 응답이 검색 입력 자체가 되는 기법은 `rag/`로 간다.
 
-**수정(2026-08-20, #49)**: Milestone B에서 law-corpus로 실제 이관하며 판단 — `search_complex`는
-질의분해(`app.agent.decompose`)와 HyDE 둘 다 LLM 호출이라 애초에 law-corpus로 옮기지 않았다
-(law-corpus 결정 A). `promotion_score`/`hybrid_search`(구 `retrieve_simple`, LLM 미호출)만
+**수정(2026-08-20, #49)**: Milestone B에서 the-book-of-moon으로 실제 이관하며 판단 — `search_complex`는
+질의분해(`app.agent.decompose`)와 HyDE 둘 다 LLM 호출이라 애초에 the-book-of-moon으로 옮기지 않았다
+(the-book-of-moon 결정 A). `promotion_score`/`hybrid_search`(구 `retrieve_simple`, LLM 미호출)만
 `lawcorpus.search`로 이관하고, `search_complex`는 `app/retrieval/pipeline.py`에서 `app/rag/
 complex_search.py`로 옮겨 이 repo에 잔류시켰다. HyDE 콜백 주입 같은 우회는 필요 없었다 —
 LLM 호출이 하나가 아니라 둘(decompose+hyde)이라 애초에 "일부만 옮기는" 절충이 성립하지 않았다.
