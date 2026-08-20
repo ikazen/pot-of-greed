@@ -27,7 +27,7 @@ scripts/      개발·운영 도구
 ```
 
 세법/판례 코퍼스 저장·수집·조회(구 `app/{db,ingest,retrieval}`)는
-[`lawcorpus`](https://github.com/ikazen/law-corpus) 공통 라이브러리로 분리됐다. 데이터 적재·스키마 적용은
+[`lawcorpus`](https://github.com/ikazen/the-book-of-moon) 공통 라이브러리로 분리됐다. 데이터 적재·스키마 적용은
 `lawcorpus` CLI(`lawcorpus apply-schema` / `ingest-laws` / `ingest-cases` / `backfill` / `update-validity`)로 한다.
 
 ## 개발 도구

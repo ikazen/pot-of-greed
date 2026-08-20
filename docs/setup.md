@@ -8,7 +8,7 @@
 - 온프레미스 Ollama (`qwen3-embedding:8b`, `bge-reranker-v2-m3`)
 - Gemini API 키 (Google AI Studio)
 - Ollama Cloud 엔드포인트 + API 키 (gpt-oss:20b aux 모델용)
-- 세법/판례 코퍼스는 [`lawcorpus`](https://github.com/ikazen/law-corpus) 라이브러리가 관리 — 이 repo의
+- 세법/판례 코퍼스는 [`lawcorpus`](https://github.com/ikazen/the-book-of-moon) 라이브러리가 관리 — 이 repo의
   `PG_DSN`/`NEO4J_*`는 lawcorpus가 적재한 것과 **같은 DB/그래프**를 가리켜야 한다
 
 ## 설정
@@ -85,7 +85,7 @@ lawcorpus backfill                                        # 임베딩 채우기
 lawcorpus update-validity                                 # validity_flag 계산
 ```
 
-자세한 옵션은 [lawcorpus docs/setup.md](https://github.com/ikazen/law-corpus/blob/main/docs/setup.md) 참조.
+자세한 옵션은 [lawcorpus docs/setup.md](https://github.com/ikazen/the-book-of-moon/blob/main/docs/setup.md) 참조.
 
 ## RARR eval 하니스
 
